@@ -180,17 +180,20 @@
 <script>
   let slideInterval = null;
 
-  function productMediaHtml(product) {
-    if (product.image) {
-      const imgUrl = (typeof window.getIkUrl === 'function')
-        ? window.getIkUrl(product.image, 700, 85)
-        : product.image;
-      return '<img src="' + escapeHtml(imgUrl) + '" alt="' + escapeHtml(product.name || "") + '" class="product-media-img" loading="lazy" decoding="async">';
-    }
-    const cat = Store.getCategories().find(function (c) { return c.id === product.categoryId; });
-    const key = cat ? cat.icon : "box";
-    return '<div class="placeholder-icon">' + iconSvg(key) + "</div>";
+ function productMediaHtml(product) {
+  if (product.image) {
+    const imgUrl = (typeof window.getIkUrl === 'function')
+      ? window.getIkUrl(product.image, 700, 85)
+      : product.image;
+    return '<img src="' + escapeHtml(imgUrl) + '" ' +
+           'alt="' + escapeHtml(product.name || "") + '" ' +
+           'class="product-media-img" loading="lazy" decoding="async" ' +
+           'onerror="this.onerror=null; this.src=\'https://placehold.co/600x600/f2f4f9/16233f?text=صورة+تجريبية\';">';
   }
+  const cat = Store.getCategories().find(function (c) { return c.id === product.categoryId; });
+  const key = cat ? cat.icon : "box";
+  return '<div class="placeholder-icon">' + iconSvg(key) + "</div>";
+}
   
   function renderHomeProductCard(product) {
     const outOfStock = !Store.isProductAvailable(product);
