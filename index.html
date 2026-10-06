@@ -13,11 +13,15 @@
   <link rel="preconnect" href="https://test3-2a6de-default-rtdb.europe-west1.firebasedatabase.app" crossorigin>
   <link rel="preconnect" href="https://ik.imagekit.io" crossorigin>
 
-  <!-- تحميل الخطوط بدون تعطيل العرض في أول دخول عبر display=swap -->
-  <link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- تحميل الخطوط في الخلفية دون تعطيل ظهور الصفحة للإنترنت الضعيف -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+  </noscript>
 
-  <link rel="stylesheet" href="css/style.css?v=48">
-  <link rel="stylesheet" href="css/refresh.css?v=48">
+  <link rel="stylesheet" href="css/style.css?v=49">
+  <link rel="stylesheet" href="css/refresh.css?v=49">
 </head>
 <body>
 
@@ -51,7 +55,7 @@
     </div>
   </section>
 
-  <!-- قسم الأقسام بعد إبراز عنوانه وإضافة زر العرض لشد الانتباه -->
+  <!-- قسم الأقسام الرئيسية -->
   <section class="section section-categories-highlight" id="categories">
     <div class="container">
       <div class="section-head">
@@ -66,6 +70,7 @@
     </div>
   </section>
 
+  <!-- قسم المنتجات المميزة -->
   <section class="section section-alt">
     <div class="container">
       <div class="section-head">
@@ -75,7 +80,6 @@
         </div>
         <a href="products.html?filter=featured" class="btn btn-outline btn-sm">عرض الكل</a>
       </div>
-      <!-- هياكل تحميل Skeleton لمنع الفراغ في أول ثانية للعميل -->
       <div class="product-grid" id="featuredGrid">
         <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
         <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
@@ -85,6 +89,7 @@
     </div>
   </section>
 
+  <!-- قسم العروض الخاصة -->
   <section class="section">
     <div class="container">
       <div class="section-head">
@@ -103,6 +108,7 @@
     </div>
   </section>
 
+  <!-- قسم وصل حديثاً -->
   <section class="section section-alt">
     <div class="container">
       <div class="section-head">
@@ -121,6 +127,7 @@
     </div>
   </section>
 
+  <!-- قسم المزايا -->
   <section class="section">
     <div class="container">
       <div class="section-head">
@@ -154,6 +161,7 @@
     </div>
   </section>
 
+  <!-- تواصل معنا -->
   <section class="section section-alt">
     <div class="container">
       <div class="contact-band" id="contactBand">
@@ -170,30 +178,30 @@
 <div id="site-footer"></div>
 
 <!-- تحميل السكربتات بالتوازي دون حجب الواجهة باستخدام defer -->
-<script src="js/config.js?v=48" defer></script>
-<script src="js/icons.js?v=48" defer></script>
+<script src="js/config.js?v=49" defer></script>
+<script src="js/icons.js?v=49" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" defer></script>
-<script src="js/store.js?v=48" defer></script>
-<script src="js/whatsapp.js?v=48" defer></script>
-<script src="js/app.js?v=48" defer></script>
+<script src="js/store.js?v=49" defer></script>
+<script src="js/whatsapp.js?v=49" defer></script>
+<script src="js/app.js?v=49" defer></script>
 <script>
   let slideInterval = null;
 
- function productMediaHtml(product) {
-  if (product.image) {
-    const imgUrl = (typeof window.getIkUrl === 'function')
-      ? window.getIkUrl(product.image, 700, 85)
-      : product.image;
-    return '<img src="' + escapeHtml(imgUrl) + '" ' +
-           'alt="' + escapeHtml(product.name || "") + '" ' +
-           'class="product-media-img" loading="lazy" decoding="async" ' +
-           'onerror="this.onerror=null; this.src=\'https://placehold.co/600x600/f2f4f9/16233f?text=صورة+تجريبية\';">';
+  function productMediaHtml(product) {
+    if (product.image) {
+      const imgUrl = (typeof window.getIkUrl === 'function')
+        ? window.getIkUrl(product.image, 700, 85)
+        : product.image;
+      return '<img src="' + escapeHtml(imgUrl) + '" ' +
+             'alt="' + escapeHtml(product.name || "") + '" ' +
+             'class="product-media-img" loading="lazy" decoding="async" ' +
+             'onerror="this.onerror=null; this.src=\'https://placehold.co/600x600/f2f4f9/16233f?text=صورة+تجريبية\';">';
+    }
+    const cat = Store.getCategories().find(function (c) { return c.id === product.categoryId; });
+    const key = cat ? cat.icon : "box";
+    return '<div class="placeholder-icon">' + iconSvg(key) + "</div>";
   }
-  const cat = Store.getCategories().find(function (c) { return c.id === product.categoryId; });
-  const key = cat ? cat.icon : "box";
-  return '<div class="placeholder-icon">' + iconSvg(key) + "</div>";
-}
   
   function renderHomeProductCard(product) {
     const outOfStock = !Store.isProductAvailable(product);
@@ -245,9 +253,9 @@
                 ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
                 iconSvg("cart") +
               "</button>" +
-            '</div>' +
-          '</div>' +
-        '</div>' +
+            "</div>" +
+          "</div>" +
+        "</div>" +
       '</article>'
     );
   }
@@ -310,6 +318,7 @@
       homeSocial.innerHTML = socialHtml || '<span style="opacity:.6;">لم يتم إعداد روابط التواصل بعد.</span>';
     }
 
+    // 1. رسم الأقسام فوراً دون استهلاك باقة أو اتصال إضافي
     const catEl = document.getElementById("homeCategories");
     if (catEl) {
       const categories = Store.getCategories();
@@ -320,12 +329,13 @@
       }).join("");
     }
 
+    // 2. استخدام الكاش المحلي لظهور فوري بـ 4 منتجات فقط لكل قسم
     const cachedFeatured = JSON.parse(localStorage.getItem("ws_products_filter_featured") || "[]");
     const cachedOffers = JSON.parse(localStorage.getItem("ws_products_filter_offers") || "[]");
     const cachedNew = JSON.parse(localStorage.getItem("ws_products_filter_new") || "[]");
-    if (cachedFeatured.length) renderGridInto("featuredGrid", cachedFeatured.slice(0, 8));
-    if (cachedOffers.length) renderGridInto("offerGrid", cachedOffers.slice(0, 8));
-    if (cachedNew.length) renderGridInto("newGrid", cachedNew.slice(0, 8));
+    if (cachedFeatured.length) renderGridInto("featuredGrid", cachedFeatured.slice(0, 4));
+    if (cachedOffers.length) renderGridInto("offerGrid", cachedOffers.slice(0, 4));
+    if (cachedNew.length) renderGridInto("newGrid", cachedNew.slice(0, 4));
 
     renderAdsSlider();
 
@@ -333,14 +343,25 @@
       window.updateCartBadge();
     }
 
-    const homeResults = await Promise.all([
-      Store.loadProductsByField("featured", true, "featured", false),
-      Store.loadProductsByField("isOffer", true, "offers", false),
-      Store.loadProductsByField("isNew", true, "new", false)
-    ]);
-    renderGridInto("featuredGrid", homeResults[0].slice(0, 8), "لا توجد منتجات مميزة حاليًا.");
-    renderGridInto("offerGrid", homeResults[1].slice(0, 8), "لا توجد عروض وتخفيضات حاليًا.");
-    renderGridInto("newGrid", homeResults[2].slice(0, 8), "لا توجد منتجات جديدة حاليًا.");
+    // 3. جلب خفيف ومرحلي على شبكة 3G (4 منتجات فقط لكل قسم بالتتابع)
+    try {
+      const featuredRes = await Store.loadProductsPageByField("featured", true, 4, null);
+      if (featuredRes && featuredRes.products) {
+        renderGridInto("featuredGrid", featuredRes.products, "لا توجد منتجات مميزة حاليًا.");
+      }
+
+      const offerRes = await Store.loadProductsPageByField("isOffer", true, 4, null);
+      if (offerRes && offerRes.products) {
+        renderGridInto("offerGrid", offerRes.products, "لا توجد عروض وتخفيضات حاليًا.");
+      }
+
+      const newRes = await Store.loadProductsPageByField("isNew", true, 4, null);
+      if (newRes && newRes.products) {
+        renderGridInto("newGrid", newRes.products, "لا توجد منتجات جديدة حاليًا.");
+      }
+    } catch (e) {
+      console.error("Home loading error:", e);
+    }
   }
 
   function renderAdsSlider() {
