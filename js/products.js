@@ -515,20 +515,7 @@ async function initHomeCollections() {
 
   if (!featuredEl && !offerEl && !newEl && !catEl) return;
 
-  if(featuredEl) featuredEl.innerHTML = renderSkeletonCards(4);
-  if(offerEl) offerEl.innerHTML = renderSkeletonCards(4);
-  if(newEl) newEl.innerHTML = renderSkeletonCards(4);
-
-  const results = await Promise.all([
-    Store.loadProductsPageByField("featured", true, 8, null),
-    Store.loadProductsPageByField("isOffer", true, 8, null),
-    Store.loadProductsPageByField("isNew", true, 8, null)
-  ]);
-  
-  if (featuredEl) renderGridInto("featuredGrid", results[0].products, "لا توجد منتجات مميزة حاليًا.");
-  if (offerEl) renderGridInto("offerGrid", results[1].products, "لا توجد عروض حاليًا.");
-  if (newEl) renderGridInto("newGrid", results[2].products, "لا توجد منتجات جديدة حاليًا.");
-  
+  // 1. رسم الأقسام فوراً دون انتظار أي طلب شبكة لأنها مخزنة محلياً
   if (catEl) {
     const categories = Store.getCategories();
     const mainCategories = categories.filter(function(c) { return !c.parentId; });
@@ -536,6 +523,33 @@ async function initHomeCollections() {
       const media = c.image ? '<img src="' + escapeHtml(c.image) + '" alt="' + escapeHtml(c.name) + '" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">' : iconSvg(c.icon || "box");
       return '<a href="products.html?cat=' + encodeURIComponent(c.id) + '" class="cat-chip"><span class="cat-icon" style="padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;">' + media + '</span><span class="name">' + escapeHtml(c.name) + "</span></a>";
     }).join("");
+  }
+
+  // 2. وضع الهيكل العظمي (Skeleton) لـ 4 بطاقات فقط لكل قسم لتخفيف وزن الـ DOM
+  if(featuredEl) featuredEl.innerHTML = renderSkeletonCards(4);
+  if(offerEl) offerEl.innerHTML = renderSkeletonCards(4);
+  if(newEl) newEl.innerHTML = renderSkeletonCards(4);
+
+  try {
+    // 3. الأولوية الأولى: جلب المميزة أولاً وبشكل منفصل ليرى الزائر المنتجات فوراً (4 منتجات فقط)
+    if (featuredEl) {
+      const featuredRes = await Store.loadProductsPageByField("featured", true, 4, null);
+      renderGridInto("featuredGrid", featuredRes.products, "لا توجد منتجات مميزة حاليًا.");
+    }
+
+    // 4. جلب العروض في المرحلة الثانية
+    if (offerEl) {
+      const offerRes = await Store.loadProductsPageByField("isOffer", true, 4, null);
+      renderGridInto("offerGrid", offerRes.products, "لا توجد عروض حاليًا.");
+    }
+
+    // 5. جلب وصل حديثاً في المرحلة الأخيرة
+    if (newEl) {
+      const newRes = await Store.loadProductsPageByField("isNew", true, 4, null);
+      renderGridInto("newGrid", newRes.products, "لا توجد منتجات جديدة حاليًا.");
+    }
+  } catch (err) {
+    console.error("Home collections load error:", err);
   }
 }
 
