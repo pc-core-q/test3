@@ -334,7 +334,7 @@ async function fetchNextShopBatch(token) {
         page.cursors[sourceKey] = { list: filteredSortedList, index: 0 };
       }
 
-      // 2. سحب الدفعة الحالية (20 منتج) من القائمة المرتبة الجاهزة
+      // 2. سحب الدفعة الحالية من القائمة المرتبة الجاهزة
       const state = page.cursors[sourceKey];
       const addedBatch = state.list.slice(state.index, state.index + SHOP_PAGE_SIZE);
       state.index += addedBatch.length;
@@ -391,7 +391,7 @@ async function fetchNextShopBatch(token) {
         page.cursors[sourceKey] = { list: allCatProducts, index: 0 };
       }
       
-      // 2. سحب دفعة (15-20 منتج حسب إعداداتك) من القائمة المحفوظة
+      // 2. سحب دفعة من القائمة المحفوظة
       const state = page.cursors[sourceKey];
       added = state.list.slice(state.index, state.index + SHOP_PAGE_SIZE);
       state.index += added.length;
@@ -495,8 +495,10 @@ async function renderShopResults(options) {
   else if (shopState.filterMode === "new") emptyMsg = "عذراً، لا توجد منتجات جديدة في المتجر حالياً.";
 
   renderGridInto("shopGrid", list, emptyMsg);
+  
+  // إخفاء عداد عدد المنتجات ليبقى المظهر نظيفاً للزبون
   const countEl = document.getElementById("resultCount");
-  if (countEl) countEl.textContent = (shopState.pagination.done ? list.length : list.length + "+") + " منتج";
+  if (countEl) countEl.style.display = "none";
 
   const wrap = document.getElementById("shopLoadMoreWrap");
   if (wrap) wrap.style.display = (shopState.pagination.done || list.length === 0) ? "none" : "block";
@@ -585,7 +587,6 @@ async function initProductDetailPage() {
   }
 
   if (allImages.length > 0) {
-    // الداخل: نطلب 900px بجودة 85% لوزن أقل من 100KB وبحدة مطابقة للبانر
     galleryHtml = '<div class="detail-gallery"><img id="mainProductDetailImage" src="' + escapeHtml(window.getIkUrl(allImages[0], 1000, 85)) + '" alt="' + escapeHtml(product.name) + '" class="detail-gallery-img"></div>';
     
     if (allImages.length > 1) {
@@ -667,7 +668,7 @@ async function initProductDetailPage() {
       '<div class="detail-info">' +
         '<span class="product-cat">' + escapeHtml(Store.getCategoryName(product.categoryId)) + "</span>" +
         "<h1>" + escapeHtml(product.name) + "</h1>" +
-        '<div class="stock-line" id="stockLine"><span class="dot' + (initiallyOutOfStock ? " dot-out" : "") + '"></span><span id="stockLineText">' + (initiallyOutOfStock ? "غير متوفر حاليًا" : "متوفر — الكمية " + initialStock) + "</span></div>" +
+        '<div class="stock-line" id="stockLine"><span class="dot' + (initiallyOutOfStock ? " dot-out" : "") + '"></span><span id="stockLineText">' + (initiallyOutOfStock ? "غير متوفر حاليًا" : "متوفر حاليًا") + "</span></div>" +
         '<div class="detail-price">' + formatPrice(product.price) + "</div>" +
         '<div id="descWrapper" style="position:relative; overflow:hidden; max-height:80px; transition: max-height 0.4s ease;">' +
           '<p style="margin:0; white-space: pre-wrap;">' + escapeHtml(product.description || "") + '</p>' +
@@ -711,7 +712,7 @@ async function initProductDetailPage() {
     const stockLineText = document.getElementById("stockLineText");
     if (stockLine && stockLineText) {
       stockLine.querySelector(".dot").classList.toggle("dot-out", outOfStock);
-      stockLineText.textContent = outOfStock ? "غير متوفر حاليًا" : "متوفر — الكمية " + stock;
+      stockLineText.textContent = outOfStock ? "غير متوفر حاليًا" : "متوفر حاليًا";
     }
     const availabilityMeta = document.getElementById("availabilityMeta");
     if (availabilityMeta) availabilityMeta.textContent = "حالة التوفر: " + (outOfStock ? "غير متوفر" : "متوفر");
