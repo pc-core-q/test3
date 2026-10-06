@@ -4,8 +4,10 @@
 
 function productMediaHtml(product) {
   if (product.image) {
-    // بالخارج: نطلب 400px لتوفير الباقة وسرعة التحميل
-    return '<img src="' + escapeHtml(window.getIkUrl(product.image, 700, 85)) + '" alt="' + escapeHtml(product.name || "") + '" class="product-media-img" loading="lazy" decoding="async">';
+    return '<img src="' + escapeHtml(window.getIkUrl(product.image, 700, 85)) + '" ' +
+           'alt="' + escapeHtml(product.name || "") + '" ' +
+           'class="product-media-img" loading="lazy" decoding="async" ' +
+           'onerror="this.onerror=null; this.src=\'https://placehold.co/600x600/f2f4f9/16233f?text=صورة+تجريبية\';">';
   }
   const cat = Store.getCategories().find(function (c) { return c.id === product.categoryId; });
   const key = cat ? cat.icon : "box";
