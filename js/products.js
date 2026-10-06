@@ -107,7 +107,7 @@ function renderGridInto(containerId, products, emptyMessage) {
   el.innerHTML = products.map(renderProductCard).join("");
 }
 
-const SHOP_PAGE_SIZE = 20;
+const SHOP_PAGE_SIZE = 10;
 const shopState = {
   search: "", categoryId: "all", sort: "default", minPrice: "", maxPrice: "", filterMode: "",
   pagination: { token: 0, loading: false, done: false, cursors: {}, sources: [], products: [] }
