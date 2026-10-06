@@ -319,19 +319,33 @@ async function fetchNextShopBatch(token) {
       page.cursors[sourceKey] = result.nextCursor;
       page.done = result.done;
     } else {
-      const categories = Store.getCategories();
-      const selected = categories.find(function(c) { return c.id === shopState.categoryId; });
-      const ids = [shopState.categoryId];
-      if (selected && !selected.parentId) {
-        categories.filter(function(c) { return c.parentId === selected.id; }).forEach(function(c) { ids.push(c.id); });
-      }
+      const sourceKey = "cat:" + shopState.categoryId;
+      
+      // 1. جلب كل منتجات القسم مرة واحدة وحفظها في الذاكرة للتقسيم المحلي
+      if (!page.cursors[sourceKey]) {
+        const categories = Store.getCategories();
+        const selected = categories.find(function(c) { return c.id === shopState.categoryId; });
+        const ids = [shopState.categoryId];
+        if (selected && !selected.parentId) {
+          categories.filter(function(c) { return c.parentId === selected.id; }).forEach(function(c) { ids.push(c.id); });
+        }
 
-      for (let i = 0; i < ids.length; i++) {
-        const catProducts = await Store.loadProductsByCategory(ids[i]);
-        if (token !== page.token) return;
-        added = added.concat(catProducts);
+        let allCatProducts = [];
+        for (let i = 0; i < ids.length; i++) {
+          const catProducts = await Store.loadProductsByCategory(ids[i]);
+          if (token !== page.token) return;
+          allCatProducts = allCatProducts.concat(catProducts);
+        }
+        page.cursors[sourceKey] = { list: allCatProducts, index: 0 };
       }
-      page.done = true;
+      
+      // 2. سحب دفعة (15-20 منتج حسب إعداداتك) من القائمة المحفوظة
+      const state = page.cursors[sourceKey];
+      added = state.list.slice(state.index, state.index + SHOP_PAGE_SIZE);
+      state.index += added.length;
+      
+      // 3. إخفاء زر "تحميل المزيد" فقط إذا وصلنا لنهاية المنتجات
+      page.done = state.index >= state.list.length;
     }
 
     const seen = new Set(page.products.map(function(p) { return p.id; }));
