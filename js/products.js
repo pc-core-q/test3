@@ -290,12 +290,62 @@ async function fetchNextShopBatch(token) {
 
   try {
     if (shopState.search || shopState.sort !== "default") {
-      if (!page.products.length) {
+      const sourceKey = "search_sort";
+      
+      // 1. إذا لم نقم بفلترتها وترتيبها بعد، نقوم بجلب كل شيء وترتيبه وحفظه في الذاكرة
+      if (!page.cursors[sourceKey]) {
         const all = await Store.loadAllProductsFromFirebase();
         if (token !== page.token) return;
-        page.products = (all || []).slice();
+        
+        let filteredSortedList = (all || []).slice();
+        
+        // تطبيق فلتر القسم إن وجد
+        if (shopState.categoryId !== "all") {
+          const categories = Store.getCategories();
+          const selected = categories.find(function(c) { return c.id === shopState.categoryId; });
+          const allowedIds = new Set([shopState.categoryId]);
+          if (selected && !selected.parentId) {
+            categories.filter(function(c) { return c.parentId === selected.id; }).forEach(function(c) { allowedIds.add(c.id); });
+          }
+          filteredSortedList = filteredSortedList.filter(function(p) { return allowedIds.has(p.categoryId); });
+        }
+
+        // تطبيق فلتر مميز/عروض/جديد إن وجد
+        if (shopState.filterMode === "featured") filteredSortedList = filteredSortedList.filter(function(p) { return !!p.featured; });
+        else if (shopState.filterMode === "offer") filteredSortedList = filteredSortedList.filter(function(p) { return !!p.isOffer; });
+        else if (shopState.filterMode === "new") filteredSortedList = filteredSortedList.filter(function(p) { return !!p.isNew; });
+
+        // تطبيق البحث
+        if (shopState.search) {
+          const q = shopState.search.toLowerCase();
+          filteredSortedList = filteredSortedList.filter(function (p) { return (p.name || "").toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q); });
+        }
+
+        // تطبيق الترتيب
+        switch (shopState.sort) {
+          case "price-asc": filteredSortedList.sort(function (a, b) { return a.price - b.price; }); break;
+          case "price-desc": filteredSortedList.sort(function (a, b) { return b.price - a.price; }); break;
+          case "name": filteredSortedList.sort(function (a, b) { return (a.name || "").localeCompare((b.name || ""), "ar"); }); break;
+          default: break;
+        }
+
+        page.cursors[sourceKey] = { list: filteredSortedList, index: 0 };
       }
-      page.done = true;
+
+      // 2. سحب الدفعة الحالية (20 منتج) من القائمة المرتبة الجاهزة
+      const state = page.cursors[sourceKey];
+      const addedBatch = state.list.slice(state.index, state.index + SHOP_PAGE_SIZE);
+      state.index += addedBatch.length;
+      page.done = state.index >= state.list.length;
+      
+      // 3. إضافتها لمنتجات الصفحة وعرضها
+      const seen = new Set(page.products.map(function(p) { return p.id; }));
+      addedBatch.forEach(function(p) {
+        if (p && !seen.has(p.id)) {
+          seen.add(p.id);
+          page.products.push(p);
+        }
+      });
       return;
     }
 
