@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>المنتجات | متجرك الإلكتروني</title>
+  <link rel="icon" href="assets/logo/logo.png">
+  <link rel="stylesheet" href="css/style.css?v=42">
+  <link rel="stylesheet" href="css/refresh.css?v=42">
+  <style>
+    .shop-cat-tabs-wrap {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .shop-cat-tabs-wrap::-webkit-scrollbar { display: none; }
+    .shop-tab-btn {
+      padding: 8px 18px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--line);
+      background: var(--white);
+      color: var(--ink-700);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+    .shop-tab-btn.active {
+      background: var(--olive-700);
+      color: var(--white);
+      border-color: var(--olive-700);
+    }
+    #shopGrid.is-updating {
+      opacity: 0.5;
+      transition: opacity 0.2s ease;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Sidebar overlay -->
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<div id="site-header" data-active="products"></div>
+
+<main>
+  <section class="page-header">
+    <div class="container">
+      <div class="breadcrumb"><a href="index.html">الرئيسية</a> / المنتجات</div>
+      <h1>جميع المنتجات</h1>
+      <p>تصفح تشكيلتنا المميزة واختر ما يناسبك واطلب مباشرة عبر واتساب.</p>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:20px;">
+    <div class="container">
+      <div class="shop-controls" style="margin-bottom:15px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+        <div class="search-box" style="flex:1;min-width:240px;position:relative;">
+          <input type="text" id="searchInput" placeholder="ابحث باسم المنتج أو الوصف…" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:var(--radius-sm);font-family:var(--font-body);">
+        </div>
+        <div class="sort-box" style="min-width:180px;">
+          <select id="sortSelect" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;font-family:var(--font-body);">
+            <option value="default">الترتيب الافتراضي</option>
+            <option value="price-asc">السعر: من الأقل للأعلى</option>
+            <option value="price-desc">السعر: من الأعلى للأقل</option>
+            <option value="name">الاسم: أ - ي</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="shop-cat-tabs-wrap" id="filterCategories"></div>
+
+      <div style="margin-bottom:15px;font-size:0.9rem;color:var(--ink-500);" id="resultCount">جاري التحميل…</div>
+
+      <div class="product-grid" id="shopGrid"></div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script src="js/config.js?v=42"></script>
+<script src="js/icons.js?v=42"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="js/store.js?v=42"></script>
+<script src="js/whatsapp.js?v=42"></script>
+<script src="js/app.js?v=42"></script>
+<script src="js/products.js?v=42"></script>
+</body>
+</html>

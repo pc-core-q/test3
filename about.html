@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>من نحن | متجرك الإلكتروني</title>
+<link rel="icon" href="assets/logo/logo.png">
+<link rel="stylesheet" href="css/style.css?v=42">
+  <link rel="stylesheet" href="css/refresh.css?v=42">
+</head>
+<body>
+
+<div id="site-header" data-active="about"></div>
+
+<main>
+  <section class="page-header">
+    <div class="container">
+      <div class="breadcrumb"><a href="index.html">الرئيسية</a> / من نحن</div>
+      <h1>من نحن</h1>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:10px;">
+    <div class="container about-hero">
+      <div>
+        <h2 id="aboutStoreName">متجرك الإلكتروني</h2>
+        <p id="aboutDescription">متجر إلكتروني يقدّم منتجات مختارة بعناية.</p>
+        <p>بدأنا برغبة في تسهيل حصول عملائنا على منتجات موثوقة، بعيدًا عن التعقيد وبأسلوب طلب بسيط عبر واتساب.</p>
+      </div>
+      <div class="hero-art" style="max-width:360px;margin-inline-start:auto;">
+        <img src="assets/logo/logo.png" alt="شعار المتجر">
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>قيمنا</h2>
+          <p>هذه المبادئ توجّه كل قرار نتخذه في اختيار المنتجات وخدمة عملائنا.</p>
+        </div>
+      </div>
+      <div class="value-grid">
+        <div class="feature-card">
+          <div class="icon">__ICON_LEAF__</div>
+          <h3>جودة أولاً</h3>
+          <p>نختار منتجات آمنة وموثوقة تستحق ثقتك.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">__ICON_SHIELD__</div>
+          <h3>ثقة وشفافية</h3>
+          <p>معلومات واضحة عن كل منتج، وأسعار ثابتة بدون رسوم مخفية.</p>
+        </div>
+        <div class="feature-card">
+          <div class="icon">__ICON_HEART__</div>
+          <h3>اهتمام حقيقي</h3>
+          <p>فريقنا يسعده مساعدتك في اختيار المنتج الأنسب لك.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <div class="contact-band" id="aboutContactBand">
+        <div>
+          <h2>تعرّف علينا أكثر عبر انستغرام</h2>
+          <p>نشارك يوميًا أحدث المنتجات والعروض.</p>
+        </div>
+        <div class="social-row" id="aboutSocialRow"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="site-footer"></div>
+
+<script src="js/config.js?v=42"></script>
+<script src="js/icons.js?v=42"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="js/store.js?v=42"></script>
+<script src="js/whatsapp.js?v=42"></script>
+<script src="js/app.js?v=42"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const s = Store.getSettings();
+    document.getElementById("aboutStoreName").textContent = s.storeName;
+    document.getElementById("aboutDescription").textContent = s.storeDescription;
+
+    document.querySelector(".value-grid").innerHTML = document.querySelector(".value-grid").innerHTML
+      .replace("__ICON_LEAF__", iconSvg("leaf"))
+      .replace("__ICON_SHIELD__", iconSvg("shield"))
+      .replace("__ICON_HEART__", iconSvg("heart"));
+
+    let aboutSocialHtml = "";
+    if (s.instagram) aboutSocialHtml += '<a href="' + escapeHtml(s.instagram) + '" target="_blank" rel="noopener">' + iconSvg("instagram") + "انستغرام</a>";
+    if (s.whatsapp) aboutSocialHtml += '<a href="https://wa.me/' + whatsappDigitsOnly(s.whatsapp) + '" target="_blank" rel="noopener">' + iconSvg("whatsapp") + "واتساب</a>";
+    document.getElementById("aboutSocialRow").innerHTML = aboutSocialHtml || '<span style="opacity:.6;">لم يتم إعداد روابط التواصل بعد.</span>';
+  });
+</script>
+</body>
+</html>
