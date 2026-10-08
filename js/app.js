@@ -1,7 +1,7 @@
 /* ==========================================================================
    app.js
    منطق مشترك بين كل صفحات المتجر: رسم الهيدر والفوتر، القائمة، الإشعارات.
-   تم التحديث: تثبيت عداد السلة ومنع اختفائه عند التنقل بين الصفحات.
+   تم التحديث: بحث عام خفيف بنظام الدفعات يدعم الباركود ويوفر باندويث Firebase.
    ========================================================================== */
 
 /* ---------- أدوات التهريب المشتركة (متاحة لكل الصفحات) ---------- */
@@ -97,7 +97,7 @@ function renderHeader() {
       '<div class="global-search-container">' +
         '<div class="global-search-header">' +
           '<div class="search-box" style="flex:1;margin:0;">' +
-            '<input type="text" id="globalSearchInput" placeholder="ابحث عن منتج..." autocomplete="off">' +
+            '<input type="text" id="globalSearchInput" placeholder="ابحث عن منتج أو باركود..." autocomplete="off">' +
             '<span>' + iconSvg("search") + '</span>' +
           '</div>' +
           '<button type="button" class="btn-icon" id="closeGlobalSearch" aria-label="إغلاق">' + iconSvg("close") + '</button>' +
@@ -110,7 +110,7 @@ function renderHeader() {
   renderSidebarNav(active);
   initMobileNav();
   initGlobalSearch();
-  updateCartBadge(); // تحديث فوري لشارة السلة بعد رسم الهيدر
+  updateCartBadge();
 }
 
 function renderSidebarNav(activeKey) {
@@ -206,7 +206,7 @@ function initGlobalSearch() {
   openBtn.addEventListener("click", function() {
       overlay.classList.add("open");
       input.value = "";
-      resultsBox.innerHTML = '<div class="empty-search">اكتب اسم المنتج للبحث...</div>';
+      resultsBox.innerHTML = '<div class="empty-search">اكتب اسم المنتج أو الباركود للبحث...</div>';
       setTimeout(() => input.focus(), 100); 
   });
 
@@ -218,38 +218,52 @@ function initGlobalSearch() {
       if(e.target === overlay) overlay.classList.remove("open");
   });
 
-  input.addEventListener("input", async function() {
+  let searchTimeout;
+  input.addEventListener("input", function() {
+      clearTimeout(searchTimeout);
       const query = input.value.trim().toLowerCase();
       if(query.length === 0) {
-          resultsBox.innerHTML = '<div class="empty-search">اكتب اسم المنتج للبحث...</div>';
+          resultsBox.innerHTML = '<div class="empty-search">اكتب اسم المنتج أو الباركود للبحث...</div>';
           return;
       }
 
       resultsBox.innerHTML = '<div class="empty-search">جاري البحث...</div>';
-      const allProducts = await Store.loadAllProductsFromFirebase();
-      const matched = (allProducts || []).filter(p => 
-          (p.name || "").toLowerCase().includes(query) || 
-          (p.description && p.description.toLowerCase().includes(query)) ||
-          (p.variants && p.variants.some(v => String(v).toLowerCase().includes(query)))
-      );
 
-      if(matched.length === 0) {
-          resultsBox.innerHTML = '<div class="empty-search">لا توجد منتجات مطابقة لـ "' + escapeHtml(query) + '"</div>';
-          return;
-      }
+      searchTimeout = setTimeout(async function() {
+          // البحث أولاً في الذاكرة الحالية لتوفير استهلاك الباندويث
+          let pool = Store.getProducts();
 
-      resultsBox.innerHTML = matched.map(p => {
-          const img = p.image ? `<img src="${escapeHtml(window.getIkUrl(p.image, 150, 70))}" alt="${escapeHtml(p.name)}">` : `<div class="search-img-placeholder">${iconSvg("box")}</div>`;
-          return `
-              <a href="product.html?id=${encodeURIComponent(p.id)}" class="search-result-item">
-                  <div class="search-item-img">${img}</div>
-                  <div class="search-item-info">
-                      <h4>${escapeHtml(p.name)}</h4>
-                      <span>${formatPrice(p.price)}</span>
-                  </div>
-              </a>
-          `;
-      }).join("");
+          // إذا كانت الذاكرة فارغة، نطلب دفعة تمهيدية بحد أقصى 25 منتجاً
+          if (!pool || pool.length === 0) {
+              const batch = await Store.loadProductsPage(25, null);
+              pool = batch.products || [];
+          }
+
+          const matched = pool.filter(p => 
+              (p.name || "").toLowerCase().includes(query) || 
+              (p.barcode && String(p.barcode).toLowerCase().includes(query)) ||
+              (p.sku && String(p.sku).toLowerCase().includes(query)) ||
+              (p.description && p.description.toLowerCase().includes(query))
+          ).slice(0, 8); // الاكتفاء بأول 8 عناصر متطابقة لأقصى سرعة واستجابة
+
+          if(matched.length === 0) {
+              resultsBox.innerHTML = '<div class="empty-search">لا توجد منتجات مطابقة لـ "' + escapeHtml(query) + '"</div>';
+              return;
+          }
+
+          resultsBox.innerHTML = matched.map(p => {
+              const img = p.image ? `<img src="${escapeHtml(window.getIkUrl(p.image, 150, 70))}" alt="${escapeHtml(p.name)}">` : `<div class="search-img-placeholder">${iconSvg("box")}</div>`;
+              return `
+                  <a href="product.html?id=${encodeURIComponent(p.id)}" class="search-result-item">
+                      <div class="search-item-img">${img}</div>
+                      <div class="search-item-info">
+                          <h4>${escapeHtml(p.name)}</h4>
+                          <span>${formatPrice(p.price)}</span>
+                      </div>
+                  </a>
+              `;
+          }).join("");
+      }, 300);
   });
 }
 
