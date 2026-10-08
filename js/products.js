@@ -1,5 +1,5 @@
 /* ==========================================================================
-   products.js (معالجة مشكلة الترتيب والفلترة الشاملة + تثبيت تسلسل الدفعات)
+   products.js (فلترة وترتيب شامل لجميع الأقسام وتفرعاتها الفرعية)
    ========================================================================== */
 
 function productMediaHtml(product) {
@@ -125,8 +125,8 @@ const shopState = {
   categoryId: "all",
   sort: "default",
   filterMode: "",
-  allFilteredList: [],     // القائمة الكاملة بعد الفرز والترتيب
-  visibleCount: 0,         // عدد العناصر المعروضة حالياً
+  allFilteredList: [],
+  visibleCount: 0,
   isLoading: false
 };
 
@@ -285,7 +285,24 @@ function renderCategoryFilterPanel() {
   });
 }
 
-// دالة جلب وترتيب كامل البيانات لضمان دقة الفرز والترتيب
+// دالة لجلب كل المعرفات التابعة لقسم معين (القسم نفسه + تفرعاته)
+function getCategoryTargetIds(targetCatId) {
+  if (!targetCatId || targetCatId === "all") return null;
+  const categories = Store.getCategories();
+  const targetCat = categories.find(c => c.id === targetCatId);
+  
+  if (!targetCat) return [targetCatId];
+
+  // إذا كان قسماً رئيسياً، نجمع كل الأقسام الفرعية التي تتبع له
+  if (!targetCat.parentId) {
+    const subCatIds = categories.filter(c => c.parentId === targetCat.id).map(c => c.id);
+    return [targetCat.id, ...subCatIds];
+  }
+
+  // إذا كان قسماً فرعياً محدداً بذاته
+  return [targetCat.id];
+}
+
 async function loadAndRenderShop(reset) {
   if (shopState.isLoading) return;
   shopState.isLoading = true;
@@ -299,7 +316,7 @@ async function loadAndRenderShop(reset) {
   try {
     let rawList = [];
 
-    // 1. جلب البيانات بناءً على الفلتر المحدد
+    // 1. جلب البيانات بناءً على الفلتر أو القسم وتفرعاته
     if (shopState.filterMode === "featured") {
       rawList = await Store.loadProductsByField("featured", true, "featured", false);
     } else if (shopState.filterMode === "offer") {
@@ -307,7 +324,23 @@ async function loadAndRenderShop(reset) {
     } else if (shopState.filterMode === "new") {
       rawList = await Store.loadProductsByField("isNew", true, "new", false);
     } else if (shopState.categoryId && shopState.categoryId !== "all") {
-      rawList = await Store.loadProductsByCategory(shopState.categoryId, false);
+      const targetIds = getCategoryTargetIds(shopState.categoryId);
+      
+      if (targetIds && targetIds.length > 1) {
+        // قسم رئيسي مع فروعه: جلب كل الأقسام بالتوازي ودمجها بدون تكرار
+        const results = await Promise.all(targetIds.map(id => Store.loadProductsByCategory(id, false)));
+        const seen = new Set();
+        rawList = [];
+        results.flat().forEach(p => {
+          if (p && !seen.has(p.id)) {
+            seen.add(p.id);
+            rawList.push(p);
+          }
+        });
+      } else {
+        // قسم فرعي محدد أو قسم بدون فروع
+        rawList = await Store.loadProductsByCategory(shopState.categoryId, false);
+      }
     } else {
       rawList = await Store.loadAllProductsFromFirebase(false);
     }
@@ -325,7 +358,7 @@ async function loadAndRenderShop(reset) {
       });
     }
 
-    // 3. ترتيب المجموعة الكاملة بدقة وثبات
+    // 3. ترتيب كامل المجموعة التابعة للقسم/الفلتر قبل عرضها
     switch (shopState.sort) {
       case "price-asc": 
         rawList.sort(function (a, b) { return (Number(a.price) || 0) - (Number(b.price) || 0); }); 
@@ -337,7 +370,6 @@ async function loadAndRenderShop(reset) {
         rawList.sort(function (a, b) { return (a.name || "").localeCompare((b.name || ""), "ar"); }); 
         break;
       default: 
-        // الترتيب الافتراضي حسب أحدث المنتجات
         break;
     }
 
@@ -371,7 +403,7 @@ async function loadAndRenderShop(reset) {
       }
     } else if (subCatContainer) subCatContainer.style.display = "none";
 
-    // 5. عرض النتيجة
+    // 5. رسم المنتجات وتحديث زر "تحميل المزيد"
     let emptyMsg = "لا توجد منتجات مطابقة لهذا القسم حاليًا.";
     if (shopState.filterMode === "featured") emptyMsg = "عذراً، لا توجد منتجات مميزة في المتجر حالياً.";
     else if (shopState.filterMode === "offer") emptyMsg = "عذراً، لا توجد عروض وتخفيضات حالياً.";
