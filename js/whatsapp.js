@@ -1,6 +1,6 @@
 /* ==========================================================================
    whatsapp.js
-   تنسيق العملة (دينار عراقي) + بناء روابط واتساب مع نافذة معلومات التوصيل والملاحظات
+   تنسيق العملة + إرسال طلبات الواتساب مع التحقق الذكي وتفادي حظر النوافذ المنبثقة
    ========================================================================== */
 
 function formatPrice(amount) {
@@ -11,6 +11,11 @@ function formatPrice(amount) {
 
 function whatsappDigitsOnly(number) {
   return String(number || "").replace(/[^0-9]/g, "");
+}
+
+function isValidIraqiPhone(phone) {
+  const cleaned = phone.replace(/[\s-]/g, "");
+  return /^07[3-9]\d{8}$/.test(cleaned);
 }
 
 function showDeliveryModal(onConfirm) {
@@ -31,7 +36,7 @@ function showDeliveryModal(onConfirm) {
           '<div class="field"><label>المحافظة</label><input type="text" id="delGov" placeholder="مثال: بغداد / كربلاء" required></div>' +
           '<div class="field"><label>المنطقة</label><input type="text" id="delArea" placeholder="مثال: حي الحسين" required></div>' +
           '<div class="field"><label>أقرب نقطة دالة (اختياري)</label><input type="text" id="delLandmark" placeholder="مثال: قرب مجسر..."></div>' +
-          '<div class="field"><label>رقم الهاتف</label><input type="tel" id="delPhone" placeholder="مثال: 07700000000" required></div>' +
+          '<div class="field"><label>رقم الهاتف (11 رقم يبدأ بـ 07)</label><input type="tel" id="delPhone" placeholder="مثال: 07801234567" required dir="ltr"></div>' +
           '<div class="field"><label>ملاحظات (اختياري)</label><textarea id="delNotes" placeholder="مثال: التوصيل مساءً، أو أي تفاصيل أخرى..." style="min-height: 60px;"></textarea></div>' +
           '<button type="submit" class="btn btn-whatsapp btn-block" style="margin-top:20px;">تأكيد وإرسال عبر واتساب</button>' +
         '</form>' +
@@ -58,11 +63,22 @@ function showDeliveryModal(onConfirm) {
 
   newForm.addEventListener("submit", function(e) {
     e.preventDefault();
+    const phoneVal = document.getElementById("delPhone").value.trim();
+
+    if (!isValidIraqiPhone(phoneVal)) {
+      if (typeof showToast === "function") {
+        showToast("يرجى إدخال رقم هاتف عراقي صالح يتكون من 11 رقماً ويبدأ بـ 07", "error");
+      } else {
+        alert("يرجى إدخال رقم هاتف عراقي صالح يتكون من 11 رقماً ويبدأ بـ 07");
+      }
+      return;
+    }
+
     const info = {
       gov: document.getElementById("delGov").value.trim(),
       area: document.getElementById("delArea").value.trim(),
       landmark: document.getElementById("delLandmark").value.trim() || "لا يوجد",
-      phone: document.getElementById("delPhone").value.trim(),
+      phone: phoneVal,
       notes: document.getElementById("delNotes") ? document.getElementById("delNotes").value.trim() : ""
     };
     modal.classList.remove("open"); 
@@ -102,22 +118,22 @@ function buildProductWhatsAppLink(product, qty, info, selection) {
   const variantLine = variantLineText(selection);
 
   const lines = [
-    " السلام عليكم، أود طلب هذا المنتج:",
+    "السلام عليكم، أود طلب هذا المنتج:",
     "",
-    " *تفاصيل الطلب:*",
+    "*تفاصيل الطلب:*",
     "- اسم المنتج: *" + product.name + "*",
-    variantLine ? " " + variantLine : null,
+    variantLine ? "- " + variantLine : null,
     "- الكمية: " + quantity,
     "- السعر: *" + formatPrice(total) + "* (غير شامل أجور التوصيل)",
     "",
-    " *معلومات التوصيل:*",
+    "*معلومات التوصيل:*",
     "- المحافظة: *" + info.gov + "*",
     "- المنطقة: *" + info.area + "*",
     "- أقرب نقطة دالة: " + info.landmark,
     "- رقم الهاتف: *" + info.phone + "*",
-    info.notes ? " *ملاحظات:* " + info.notes : null,
+    info.notes ? "- *ملاحظات:* " + info.notes : null,
     "",
-    "أنتظر تأكيدكم لإتمام الطلب، شكراً لكم! "
+    "أنتظر تأكيدكم لإتمام الطلب، شكراً لكم!"
   ].filter(Boolean);
 
   return buildWhatsAppUrl(lines.join("\n"));
@@ -125,9 +141,9 @@ function buildProductWhatsAppLink(product, qty, info, selection) {
 
 function buildCartWhatsAppLink(cartLines, products, info) {
   const messageLines = [
-    " السلام عليكم، أود طلب هذه المنتجات من السلة:",
+    "السلام عليكم، أود طلب هذه المنتجات من السلة:",
     "",
-    " *تفاصيل الطلب:*"
+    "*تفاصيل الطلب:*"
   ];
 
   let total = 0;
@@ -141,18 +157,18 @@ function buildCartWhatsAppLink(cartLines, products, info) {
   });
 
   messageLines.push("");
-  messageLines.push(" *السعر الإجمالي:* *" + formatPrice(total) + "* (غير شامل أجور التوصيل)");
+  messageLines.push("*السعر الإجمالي:* *" + formatPrice(total) + "* (غير شامل أجور التوصيل)");
   messageLines.push("");
-  messageLines.push(" *معلومات التوصيل:*");
-  messageLines.push(" المحافظة: *" + info.gov + "*");
-  messageLines.push(" المنطقة: *" + info.area + "*");
-  messageLines.push(" أقرب نقطة دالة: " + info.landmark);
-  messageLines.push(" رقم الهاتف: *" + info.phone + "*");
+  messageLines.push("*معلومات التوصيل:*");
+  messageLines.push("المحافظة: *" + info.gov + "*");
+  messageLines.push("المنطقة: *" + info.area + "*");
+  messageLines.push("أقرب نقطة دالة: " + info.landmark);
+  messageLines.push("رقم الهاتف: *" + info.phone + "*");
   if (info.notes) {
-    messageLines.push(" *ملاحظات:* " + info.notes);
+    messageLines.push("*ملاحظات:* " + info.notes);
   }
   messageLines.push("");
-  messageLines.push("أنتظر تأكيدكم لإتمام الطلب، شكراً لكم! ");
+  messageLines.push("أنتظر تأكيدكم لإتمام الطلب، شكراً لكم!");
 
   return buildWhatsAppUrl(messageLines.join("\n"));
 }
@@ -162,9 +178,18 @@ function buildWhatsAppUrl(message) {
   return "https://wa.me/" + number + "?text=" + encodeURIComponent(message);
 }
 
+function openWhatsAppRedirect(url) {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isMobile) {
+    window.location.href = url;
+  } else {
+    window.open(url, "_blank");
+  }
+}
+
 function orderSingleProductViaWhatsApp(product, qty, selection) {
   if (!isWhatsAppConfigured()) {
-    showToast("لم يتم إعداد رقم واتساب بعد. الرجاء إضافته من لوحة التحكم ← الإعدادات.");
+    showToast("لم يتم إعداد رقم واتساب بعد. الرجاء إضافته من لوحة التحكم ← الإعدادات.", "error");
     return;
   }
   selection = selection || {};
@@ -189,7 +214,7 @@ function orderSingleProductViaWhatsApp(product, qty, selection) {
       }],
       total: product.price * qty
     });
-    window.open(buildProductWhatsAppLink(product, qty, info, selection), "_blank");
+    openWhatsAppRedirect(buildProductWhatsAppLink(product, qty, info, selection));
   });
 }
 
@@ -197,18 +222,18 @@ function orderCartViaWhatsApp() {
   const cart = Store.getCart();
   if (!cart.length) return;
   if (!isWhatsAppConfigured()) {
-    showToast("لم يتم إعداد رقم واتساب بعد. الرجاء إضافته من لوحة التحكم ← الإعدادات.");
+    showToast("لم يتم إعداد رقم واتساب بعد. الرجاء إضافته من لوحة التحكم ← الإعدادات.", "error");
     return;
   }
   const products = Store.getProducts();
 
   const orderable = getOrderableCartLines(cart, products);
   if (!orderable.lines.length) {
-    showToast("لا توجد منتجات متوفرة في السلة لإتمام الطلب.");
+    showToast("لا توجد منتجات متوفرة في السلة لإتمام الطلب.", "error");
     return;
   }
   if (orderable.skipped > 0) {
-    showToast("تم استبعاد " + orderable.skipped + " منتج غير متوفر من الطلب.");
+    showToast("تم استبعاد " + orderable.skipped + " منتج غير متوفر من الطلب.", "error");
   }
   const orderLines = orderable.lines;
 
@@ -228,6 +253,9 @@ function orderCartViaWhatsApp() {
 
     const total = items.reduce(function (sum, it) { return sum + it.price * it.qty; }, 0);
 
+    // حفظ نسخة احتياطية من السلة والطلب
+    localStorage.setItem("ws_last_order_backup", JSON.stringify(cart));
+
     Store.logOrder({
       type: "cart",
       customer: {
@@ -241,7 +269,6 @@ function orderCartViaWhatsApp() {
       total: total
     });
 
-    window.open(buildCartWhatsAppLink(orderLines, products, info), "_blank");
-    Store.clearCart();
+    openWhatsAppRedirect(buildCartWhatsAppLink(orderLines, products, info));
   });
 }
