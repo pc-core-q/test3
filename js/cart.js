@@ -1,6 +1,7 @@
 /* ==========================================================================
    cart.js
-   منطق صفحة السلة وتجربة مستخدم آمنة لمنع الحذف العرضي
+   منطق صفحة السلة (cart.html) فقط.
+   تم التحديث: حذف المنتج تلقائياً عند إنقاص الكمية لصفر + إبراز زر الإزالة.
    ========================================================================== */
 
 function cartLineMediaUrl(line, product) {
@@ -90,18 +91,10 @@ function renderCartPage() {
     rows.push(cartLineHtml(Object.assign({}, line, { qty: qty }), product, false));
   });
 
-  const hasBackup = !!localStorage.getItem("ws_last_order_backup");
-
   if (!rows.length) {
-    let restoreBtnHtml = "";
-    if (hasBackup) {
-      restoreBtnHtml = '<button type="button" class="btn btn-outline" style="margin-top:10px;" onclick="restoreLastOrderCart()">🔄 استعادة محتويات آخر طلب</button>';
-    }
     listEl.innerHTML = '<div class="empty-state">' + iconSvg("cart") +
       "<p>سلتك فارغة حاليًا.</p>" +
-      '<a href="products.html" class="btn btn-primary">تصفح المنتجات</a>' +
-      (restoreBtnHtml ? "<br>" + restoreBtnHtml : "") +
-      '</div>';
+      '<a href="products.html" class="btn btn-primary">تصفح المنتجات</a></div>';
   } else {
     listEl.innerHTML = rows.join("");
   }
@@ -128,22 +121,6 @@ function renderCartPage() {
   }
 }
 
-function restoreLastOrderCart() {
-  const raw = localStorage.getItem("ws_last_order_backup");
-  if (!raw) return;
-  try {
-    const backup = JSON.parse(raw);
-    if (Array.isArray(backup) && backup.length) {
-      Store.saveCart(backup);
-      localStorage.removeItem("ws_last_order_backup");
-      showToast("تمت استعادة محتويات السلة بنجاح!", "success");
-      renderCartPage();
-    }
-  } catch (e) {
-    console.error(e);
-  }
-}
-
 function stepCartQty(itemKey, delta) {
   const cart = Store.getCart();
   const line = cart.find(function (l) { return l.itemKey === itemKey; });
@@ -154,8 +131,9 @@ function stepCartQty(itemKey, delta) {
   const maxStock = Store.getVariantStock(product, line.color, line.size);
   const next = line.qty + delta;
   
-  // لا نحذف تلقائياً عند الصفر لتفادي الحذف الخاطئ باللمس
-  if (next < 1) {
+  // إذا كانت الكمية الحالية 1 وتم الضغط على زر الإنقاص، يُحذف المنتج فوراً
+  if (next <= 0) {
+    removeCartLine(itemKey);
     return;
   }
 
@@ -178,8 +156,9 @@ function setCartQty(itemKey, value) {
   const maxStock = Store.getVariantStock(product, line.color, line.size);
   let qty = parseInt(value, 10);
   
-  if (isNaN(qty) || qty < 1) {
-    qty = 1;
+  if (isNaN(qty) || qty <= 0) {
+    removeCartLine(itemKey);
+    return;
   }
   
   if (qty > maxStock) {
@@ -212,6 +191,7 @@ async function initCartPage() {
       return;
     }
     orderCartViaWhatsApp();
+    setTimeout(renderCartPage, 300);
   });
   renderCartPage();
 }

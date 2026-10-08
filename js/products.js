@@ -1,5 +1,5 @@
 /* ==========================================================================
-   products.js (فلترة وترتيب شامل لجميع الأقسام وتفرعاتها الفرعية)
+   products.js (نسخة الدفعات المتطورة — معمارية الـ 10,000 منتج)
    ========================================================================== */
 
 function productMediaHtml(product) {
@@ -31,10 +31,6 @@ function renderProductCard(product) {
   else if (product.featured) badges.push('<span class="badge badge-featured">مميز</span>');
   if (outOfStock) badges.push('<span class="badge badge-out-abs">غير متوفر</span>');
 
-  const hasOptions = (product.colors && product.colors.length > 0) || 
-                     (product.sizes && product.sizes.length > 0) || 
-                     (product.variants && product.variants.length > 0);
-
   let colorsHtml = "";
   if (product.colors && product.colors.length > 0) {
     const maxShow = 4;
@@ -58,17 +54,6 @@ function renderProductCard(product) {
     }
   }
 
-  const actionButtonHtml = hasOptions
-    ? '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="btn-options" title="اختر اللون أو المقاس">' +
-        iconSvg("layers") +
-        '<span>الخيارات</span>' +
-      '</a>'
-    : '<button class="btn btn-primary" ' + (outOfStock ? "disabled" : "") +
-        ' title="' + (outOfStock ? "غير متوفر" : "أضف للسلة") + '"' +
-        ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
-        iconSvg("cart") +
-      '</button>';
-
   return (
     '<article class="product-card">' +
       '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="product-media">' +
@@ -82,7 +67,11 @@ function renderProductCard(product) {
         '<div class="product-foot">' +
           '<span class="price">' + formatPrice(product.price) + "</span>" +
           '<div class="product-actions">' +
-            actionButtonHtml +
+            '<button class="btn btn-primary" ' + (outOfStock ? "disabled" : "") +
+              ' title="' + (outOfStock ? "غير متوفر" : "أضف للسلة") + '"' +
+              ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
+              iconSvg("cart") +
+            "</button>" +
           "</div>" +
         "</div>" +
       "</div>" +
@@ -92,8 +81,8 @@ function renderProductCard(product) {
 
 async function quickAddToCart(productId) {
   let product = Store.getProduct(productId);
-  if (!product && typeof shopState !== "undefined" && shopState.allFilteredList) {
-    product = shopState.allFilteredList.find(function(p) { return p.id === productId; });
+  if (!product && typeof shopState !== "undefined" && shopState.pagination && shopState.pagination.products) {
+    product = shopState.pagination.products.find(function(p) { return p.id === productId; });
   }
   if (!product) {
     product = await Store.loadProductById(productId);
@@ -122,14 +111,19 @@ function renderGridInto(containerId, products, emptyMessage) {
 
 const SHOP_PAGE_SIZE = 12;
 const shopState = {
-  search: "",
-  categoryId: "all",
-  sort: "default",
-  filterMode: "",
-  allFilteredList: [],
-  visibleCount: 0,
-  isLoading: false
+  search: "", categoryId: "all", sort: "default", minPrice: "", maxPrice: "", filterMode: "",
+  pagination: { token: 0, loading: false, done: false, cursors: {}, products: [] }
 };
+
+function resetShopPagination() {
+  shopState.pagination = {
+    token: shopState.pagination.token + 1,
+    loading: false,
+    done: false,
+    cursors: {},
+    products: []
+  };
+}
 
 function showShopLoading(show) {
   const btn = document.getElementById("shopLoadMoreBtn");
@@ -185,20 +179,20 @@ function initShopPage() {
       clearTimeout(searchDebounce);
       searchDebounce = setTimeout(() => {
         shopState.search = searchInput.value.trim();
-        loadAndRenderShop(true);
+        renderShopResults({ reset: true });
       }, 350);
     });
   }
   if (sortSelect) {
     sortSelect.addEventListener("change", function () {
       shopState.sort = sortSelect.value;
-      loadAndRenderShop(true);
+      renderShopResults({ reset: true });
     });
   }
 
   grid.innerHTML = renderSkeletonCards(8);
   renderCategoryFilterPanel();
-  loadAndRenderShop(true);
+  renderShopResults({ reset: true });
 }
 
 window.updateCategory = function(catId) {
@@ -222,7 +216,7 @@ window.updateCategory = function(catId) {
     window.history.pushState({}, '', url);
 
     renderCategoryFilterPanel();
-    loadAndRenderShop(true);
+    renderShopResults({ reset: true });
 
     setTimeout(() => {
         if (grid) grid.classList.remove("is-updating");
@@ -277,7 +271,7 @@ function renderCategoryFilterPanel() {
       }
       
       renderCategoryFilterPanel();
-      loadAndRenderShop(true);
+      renderShopResults({ reset: true });
 
       setTimeout(() => {
         if (grid) grid.classList.remove("is-updating");
@@ -286,151 +280,147 @@ function renderCategoryFilterPanel() {
   });
 }
 
-function getCategoryTargetIds(targetCatId) {
-  if (!targetCatId || targetCatId === "all") return null;
-  const categories = Store.getCategories();
-  const targetCat = categories.find(c => c.id === targetCatId);
-  
-  if (!targetCat) return [targetCatId];
-
-  if (!targetCat.parentId) {
-    const subCatIds = categories.filter(c => c.parentId === targetCat.id).map(c => c.id);
-    return [targetCat.id, ...subCatIds];
-  }
-
-  return [targetCat.id];
-}
-
-async function loadAndRenderShop(reset) {
-  if (shopState.isLoading) return;
-  shopState.isLoading = true;
+async function fetchNextShopBatch(token) {
+  const page = shopState.pagination;
+  if (page.loading || page.done || token !== page.token) return;
+  page.loading = true;
   showShopLoading(true);
 
-  if (reset) {
-    shopState.visibleCount = 0;
-    shopState.allFilteredList = [];
-  }
-
   try {
-    let rawList = [];
+    let added = [];
 
-    if (shopState.filterMode === "featured") {
-      rawList = await Store.loadProductsByField("featured", true, "featured", false);
-    } else if (shopState.filterMode === "offer") {
-      rawList = await Store.loadProductsByField("isOffer", true, "offers", false);
-    } else if (shopState.filterMode === "new") {
-      rawList = await Store.loadProductsByField("isNew", true, "new", false);
-    } else if (shopState.categoryId && shopState.categoryId !== "all") {
-      const targetIds = getCategoryTargetIds(shopState.categoryId);
+    // 1. الفلترة حسب الحقول المميزة / العروض / جديد بنظام الدفعات السحابي
+    if (shopState.filterMode === "featured" || shopState.filterMode === "offer" || shopState.filterMode === "new") {
+      const map = { featured: ["featured", true], offer: ["isOffer", true], new: ["isNew", true] };
+      const cfg = map[shopState.filterMode];
+      const sourceKey = "field:" + cfg[0];
+      const cursor = page.cursors[sourceKey] || null;
       
-      if (targetIds && targetIds.length > 1) {
-        const results = await Promise.all(targetIds.map(id => Store.loadProductsByCategory(id, false)));
-        const seen = new Set();
-        rawList = [];
-        results.flat().forEach(p => {
-          if (p && !seen.has(p.id)) {
-            seen.add(p.id);
-            rawList.push(p);
-          }
-        });
-      } else {
-        rawList = await Store.loadProductsByCategory(shopState.categoryId, false);
+      const result = await Store.loadProductsPageByField(cfg[0], cfg[1], SHOP_PAGE_SIZE, cursor);
+      if (token !== page.token) return;
+      added = result.products;
+      page.cursors[sourceKey] = result.nextCursor;
+      page.done = result.done;
+    } 
+    // 2. الفلترة حسب القسم بنظام الدفعات الصارم (Pagination)
+    else if (shopState.categoryId !== "all") {
+      const sourceKey = "cat:" + shopState.categoryId;
+      const cursor = page.cursors[sourceKey] || null;
+
+      const result = await Store.loadProductsPageByCategory(shopState.categoryId, SHOP_PAGE_SIZE, cursor);
+      if (token !== page.token) return;
+      added = result.products;
+      page.cursors[sourceKey] = result.nextCursor;
+      page.done = result.done;
+    } 
+    // 3. عرض كافة المنتجات بالدفعات (12 منتجاً في كل طلب)
+    else {
+      const sourceKey = "all";
+      const cursor = page.cursors[sourceKey] || null;
+      const result = await Store.loadProductsPage(SHOP_PAGE_SIZE, cursor);
+      if (token !== page.token) return;
+      added = result.products;
+      page.cursors[sourceKey] = result.nextCursor;
+      page.done = result.done;
+    }
+
+    const seen = new Set(page.products.map(function(p) { return p.id; }));
+    added.forEach(function(p) {
+      if (p && !seen.has(p.id)) {
+        seen.add(p.id);
+        page.products.push(p);
       }
-    } else {
-      rawList = await Store.loadAllProductsFromFirebase(false);
-    }
+    });
 
-    rawList = rawList || [];
-
-    if (shopState.search) {
-      const q = shopState.search.toLowerCase();
-      rawList = rawList.filter(function (p) { 
-        return (p.name && p.name.toLowerCase().includes(q)) || 
-               (p.description && p.description.toLowerCase().includes(q)) ||
-               (p.barcode && String(p.barcode).toLowerCase().includes(q)) ||
-               (p.sku && String(p.sku).toLowerCase().includes(q)); 
-      });
-    }
-
-    switch (shopState.sort) {
-      case "price-asc": 
-        rawList.sort(function (a, b) { return (Number(a.price) || 0) - (Number(b.price) || 0); }); 
-        break;
-      case "price-desc": 
-        rawList.sort(function (a, b) { return (Number(b.price) || 0) - (Number(a.price) || 0); }); 
-        break;
-      case "name": 
-        rawList.sort(function (a, b) { return (a.name || "").localeCompare((b.name || ""), "ar"); }); 
-        break;
-      default: 
-        break;
-    }
-
-    shopState.allFilteredList = rawList;
-    shopState.visibleCount = Math.min(shopState.visibleCount + SHOP_PAGE_SIZE, shopState.allFilteredList.length);
-
-    const subCatContainerId = "subCategoryScroller";
-    let subCatContainer = document.getElementById(subCatContainerId);
-    if (shopState.categoryId !== "all" && !shopState.filterMode) {
-      const currentCat = Store.getCategories().find(function(c) { return c.id === shopState.categoryId; });
-      const parentId = currentCat ? (currentCat.parentId || currentCat.id) : null;
-      if (parentId) {
-        const subCats = Store.getCategories().filter(function(c) { return c.parentId === parentId; });
-        if (subCats.length > 0) {
-          if (!subCatContainer) {
-            subCatContainer = document.createElement("div");
-            subCatContainer.id = subCatContainerId;
-            subCatContainer.style.cssText = "display:flex;gap:8px;overflow-x:auto;padding-bottom:12px;margin-bottom:15px;scrollbar-width:none;";
-            const grid = document.getElementById("shopGrid");
-            if (grid && grid.parentNode) grid.parentNode.insertBefore(subCatContainer, grid);
-          }
-          let subHtml = '<button class="cat-sub-chip ' + (shopState.categoryId === parentId ? 'active' : '') + '" style="' + (shopState.categoryId === parentId ? 'background:var(--olive-700);color:#fff;' : '') + '" onclick="updateCategory(' + jsStr(parentId) + ')">كل التفرعات</button>';
-          subHtml += subCats.map(function(sub) { 
-            const isAct = shopState.categoryId === sub.id;
-            return '<button class="cat-sub-chip ' + (isAct ? 'active' : '') + '" style="' + (isAct ? 'background:var(--olive-700);color:#fff;' : '') + '" onclick="updateCategory(' + jsStr(sub.id) + ')">' + escapeHtml(sub.name) + '</button>'; 
-          }).join('');
-          subCatContainer.innerHTML = subHtml;
-          subCatContainer.style.display = "flex";
-        } else if (subCatContainer) subCatContainer.style.display = "none";
-      }
-    } else if (subCatContainer) subCatContainer.style.display = "none";
-
-    let emptyMsg = "لا توجد منتجات مطابقة لهذا القسم حاليًا.";
-    if (shopState.filterMode === "featured") emptyMsg = "عذراً، لا توجد منتجات مميزة في المتجر حالياً.";
-    else if (shopState.filterMode === "offer") emptyMsg = "عذراً، لا توجد عروض وتخفيضات حالياً.";
-    else if (shopState.filterMode === "new") emptyMsg = "عذراً، لا توجد منتجات جديدة في المتجر حالياً.";
-
-    const itemsToShow = shopState.allFilteredList.slice(0, shopState.visibleCount);
-    renderGridInto("shopGrid", itemsToShow, emptyMsg);
-
-    ensureShopPaginationUI();
-    const wrap = document.getElementById("shopLoadMoreWrap");
-    if (wrap) {
-      wrap.style.display = (shopState.visibleCount >= shopState.allFilteredList.length) ? "none" : "block";
-    }
-
-    const countEl = document.getElementById("resultCount");
-    if (countEl) countEl.style.display = "none";
-
-  } catch (err) {
-    console.error("Shop load error:", err);
+    if (!added.length) page.done = true;
+  } catch (error) {
+    console.error("Shop pagination error:", error);
+    page.done = true;
   } finally {
-    shopState.isLoading = false;
-    showShopLoading(false);
+    if (token === shopState.pagination.token) {
+      page.loading = false;
+      showShopLoading(false);
+    }
   }
 }
 
-function loadNextShopPage() {
-  if (shopState.isLoading || shopState.visibleCount >= shopState.allFilteredList.length) return;
-  shopState.visibleCount = Math.min(shopState.visibleCount + SHOP_PAGE_SIZE, shopState.allFilteredList.length);
+async function renderShopResults(options) {
+  options = options || {};
+  ensureShopPaginationUI();
+  const token = shopState.pagination.token;
+
+  if (options.reset) {
+    resetShopPagination();
+    ensureShopPaginationUI();
+  }
+
+  await fetchNextShopBatch(shopState.pagination.token);
+  if (token !== shopState.pagination.token && !options.reset) return;
+
+  let list = shopState.pagination.products.slice();
+
+  // تصفية البحث محلياً على المنتجات المحملة لمنع استنزاف السيرفر
+  if (shopState.search) {
+    const q = shopState.search.toLowerCase();
+    list = list.filter(function (p) { 
+      return (p.name || "").toLowerCase().includes(q) || 
+             (p.description || "").toLowerCase().includes(q) ||
+             (p.barcode && String(p.barcode).toLowerCase().includes(q)); 
+    });
+  }
+
+  // ترتيب المنتجات المعروضة
+  switch (shopState.sort) {
+    case "price-asc": list.sort(function (a, b) { return a.price - b.price; }); break;
+    case "price-desc": list.sort(function (a, b) { return b.price - a.price; }); break;
+    case "name": list.sort(function (a, b) { return (a.name || "").localeCompare((b.name || ""), "ar"); }); break;
+    default: break;
+  }
+
+  // شريط الأقسام الفرعية العلوي
+  const subCatContainerId = "subCategoryScroller";
+  let subCatContainer = document.getElementById(subCatContainerId);
+  if (shopState.categoryId !== "all" && !shopState.filterMode) {
+    const currentCat = Store.getCategories().find(function(c) { return c.id === shopState.categoryId; });
+    const parentId = currentCat ? (currentCat.parentId || currentCat.id) : null;
+    if (parentId) {
+      const subCats = Store.getCategories().filter(function(c) { return c.parentId === parentId; });
+      if (subCats.length > 0) {
+        if (!subCatContainer) {
+          subCatContainer = document.createElement("div");
+          subCatContainer.id = subCatContainerId;
+          subCatContainer.style.cssText = "display:flex;gap:8px;overflow-x:auto;padding-bottom:12px;margin-bottom:15px;scrollbar-width:none;";
+          const grid = document.getElementById("shopGrid");
+          if (grid && grid.parentNode) grid.parentNode.insertBefore(subCatContainer, grid);
+        }
+        let subHtml = '<button class="cat-sub-chip ' + (shopState.categoryId === parentId ? 'active' : '') + '" style="' + (shopState.categoryId === parentId ? 'background:var(--olive-700);color:#fff;' : '') + '" onclick="updateCategory(' + jsStr(parentId) + ')">كل التفرعات</button>';
+        subHtml += subCats.map(function(sub) { 
+          const isAct = shopState.categoryId === sub.id;
+          return '<button class="cat-sub-chip ' + (isAct ? 'active' : '') + '" style="' + (isAct ? 'background:var(--olive-700);color:#fff;' : '') + '" onclick="updateCategory(' + jsStr(sub.id) + ')">' + escapeHtml(sub.name) + '</button>'; 
+        }).join('');
+        subCatContainer.innerHTML = subHtml;
+        subCatContainer.style.display = "flex";
+      } else if (subCatContainer) subCatContainer.style.display = "none";
+    }
+  } else if (subCatContainer) subCatContainer.style.display = "none";
+
+  let emptyMsg = "لا توجد منتجات مطابقة لهذا القسم حاليًا.";
+  if (shopState.filterMode === "featured") emptyMsg = "عذراً، لا توجد منتجات مميزة في المتجر حالياً.";
+  else if (shopState.filterMode === "offer") emptyMsg = "عذراً، لا توجد عروض وتخفيضات حالياً.";
+  else if (shopState.filterMode === "new") emptyMsg = "عذراً، لا توجد منتجات جديدة في المتجر حالياً.";
+
+  renderGridInto("shopGrid", list, emptyMsg);
   
-  const itemsToShow = shopState.allFilteredList.slice(0, shopState.visibleCount);
-  renderGridInto("shopGrid", itemsToShow);
+  const countEl = document.getElementById("resultCount");
+  if (countEl) countEl.style.display = "none";
 
   const wrap = document.getElementById("shopLoadMoreWrap");
-  if (wrap) {
-    wrap.style.display = (shopState.visibleCount >= shopState.allFilteredList.length) ? "none" : "block";
-  }
+  if (wrap) wrap.style.display = (shopState.pagination.done || list.length === 0) ? "none" : "block";
+}
+
+async function loadNextShopPage() {
+  if (shopState.pagination.loading || shopState.pagination.done) return;
+  await renderShopResults();
 }
 
 async function initHomeCollections() {
@@ -786,7 +776,7 @@ document.addEventListener("store:synced", function () {
   initHomeCollections();
   if (document.getElementById("shopGrid")) {
     renderCategoryFilterPanel();
-    loadAndRenderShop(true);
+    renderShopResults({ reset: true });
   }
   if (document.getElementById("productDetail")) initProductDetailPage();
 });
