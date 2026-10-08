@@ -1,5 +1,5 @@
 /* ==========================================================================
-   products.js (نسخة الدفعات المتطورة — معمارية الـ 10,000 منتج)
+   products.js (معالجة الدفعات ووضوح الإجراءات للمستخدم)
    ========================================================================== */
 
 function productMediaHtml(product) {
@@ -31,6 +31,10 @@ function renderProductCard(product) {
   else if (product.featured) badges.push('<span class="badge badge-featured">مميز</span>');
   if (outOfStock) badges.push('<span class="badge badge-out-abs">غير متوفر</span>');
 
+  const hasOptions = (product.colors && product.colors.length > 0) || 
+                     (product.sizes && product.sizes.length > 0) || 
+                     (product.variants && product.variants.length > 0);
+
   let colorsHtml = "";
   if (product.colors && product.colors.length > 0) {
     const maxShow = 4;
@@ -54,6 +58,16 @@ function renderProductCard(product) {
     }
   }
 
+  const actionButtonHtml = hasOptions
+    ? '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="btn btn-primary" title="خيارات المنتج" style="font-size:0.8rem;padding:0 10px;width:auto;border-radius:var(--radius-pill);">' +
+        'الخيارات' +
+      '</a>'
+    : '<button class="btn btn-primary" ' + (outOfStock ? "disabled" : "") +
+        ' title="' + (outOfStock ? "غير متوفر" : "أضف للسلة") + '"' +
+        ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
+        iconSvg("cart") +
+      '</button>';
+
   return (
     '<article class="product-card">' +
       '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="product-media">' +
@@ -67,11 +81,7 @@ function renderProductCard(product) {
         '<div class="product-foot">' +
           '<span class="price">' + formatPrice(product.price) + "</span>" +
           '<div class="product-actions">' +
-            '<button class="btn btn-primary" ' + (outOfStock ? "disabled" : "") +
-              ' title="' + (outOfStock ? "غير متوفر" : "أضف للسلة") + '"' +
-              ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
-              iconSvg("cart") +
-            "</button>" +
+            actionButtonHtml +
           "</div>" +
         "</div>" +
       "</div>" +
@@ -289,7 +299,6 @@ async function fetchNextShopBatch(token) {
   try {
     let added = [];
 
-    // 1. الفلترة حسب الحقول المميزة / العروض / جديد بنظام الدفعات السحابي
     if (shopState.filterMode === "featured" || shopState.filterMode === "offer" || shopState.filterMode === "new") {
       const map = { featured: ["featured", true], offer: ["isOffer", true], new: ["isNew", true] };
       const cfg = map[shopState.filterMode];
@@ -302,7 +311,6 @@ async function fetchNextShopBatch(token) {
       page.cursors[sourceKey] = result.nextCursor;
       page.done = result.done;
     } 
-    // 2. الفلترة حسب القسم بنظام الدفعات الصارم (Pagination)
     else if (shopState.categoryId !== "all") {
       const sourceKey = "cat:" + shopState.categoryId;
       const cursor = page.cursors[sourceKey] || null;
@@ -313,7 +321,6 @@ async function fetchNextShopBatch(token) {
       page.cursors[sourceKey] = result.nextCursor;
       page.done = result.done;
     } 
-    // 3. عرض كافة المنتجات بالدفعات (12 منتجاً في كل طلب)
     else {
       const sourceKey = "all";
       const cursor = page.cursors[sourceKey] || null;
@@ -359,7 +366,6 @@ async function renderShopResults(options) {
 
   let list = shopState.pagination.products.slice();
 
-  // تصفية البحث محلياً على المنتجات المحملة لمنع استنزاف السيرفر
   if (shopState.search) {
     const q = shopState.search.toLowerCase();
     list = list.filter(function (p) { 
@@ -369,7 +375,6 @@ async function renderShopResults(options) {
     });
   }
 
-  // ترتيب المنتجات المعروضة
   switch (shopState.sort) {
     case "price-asc": list.sort(function (a, b) { return a.price - b.price; }); break;
     case "price-desc": list.sort(function (a, b) { return b.price - a.price; }); break;
@@ -377,7 +382,6 @@ async function renderShopResults(options) {
     default: break;
   }
 
-  // شريط الأقسام الفرعية العلوي
   const subCatContainerId = "subCategoryScroller";
   let subCatContainer = document.getElementById(subCatContainerId);
   if (shopState.categoryId !== "all" && !shopState.filterMode) {
