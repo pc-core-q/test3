@@ -1,5 +1,5 @@
 /* ==========================================================================
-   products.js (النسخة المحسنة — الجودة الذكية باستخدام getIkUrl)
+   products.js (نسخة الدفعات المتطورة — معمارية الـ 10,000 منتج)
    ========================================================================== */
 
 function productMediaHtml(product) {
@@ -109,10 +109,10 @@ function renderGridInto(containerId, products, emptyMessage) {
   el.innerHTML = products.map(renderProductCard).join("");
 }
 
-const SHOP_PAGE_SIZE = 10;
+const SHOP_PAGE_SIZE = 12;
 const shopState = {
   search: "", categoryId: "all", sort: "default", minPrice: "", maxPrice: "", filterMode: "",
-  pagination: { token: 0, loading: false, done: false, cursors: {}, sources: [], products: [] }
+  pagination: { token: 0, loading: false, done: false, cursors: {}, products: [] }
 };
 
 function resetShopPagination() {
@@ -121,7 +121,6 @@ function resetShopPagination() {
     loading: false,
     done: false,
     cursors: {},
-    sources: [],
     products: []
   };
 }
@@ -175,9 +174,13 @@ function initShopPage() {
 
   if (searchInput) {
     searchInput.value = shopState.search;
+    let searchDebounce;
     searchInput.addEventListener("input", function () {
-      shopState.search = searchInput.value.trim();
-      renderShopResults({ reset: true });
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        shopState.search = searchInput.value.trim();
+        renderShopResults({ reset: true });
+      }, 350);
     });
   }
   if (sortSelect) {
@@ -187,14 +190,7 @@ function initShopPage() {
     });
   }
 
-  const localProducts = Store.getProducts();
-  if (localProducts.length > 0 && !shopState.search && shopState.categoryId === "all" && !shopState.filterMode) {
-    shopState.pagination.products = localProducts.slice(0, SHOP_PAGE_SIZE);
-    renderGridInto("shopGrid", shopState.pagination.products);
-  } else {
-      grid.innerHTML = renderSkeletonCards(8);
-  }
-
+  grid.innerHTML = renderSkeletonCards(8);
   renderCategoryFilterPanel();
   renderShopResults({ reset: true });
 }
@@ -291,113 +287,41 @@ async function fetchNextShopBatch(token) {
   showShopLoading(true);
 
   try {
-    if (shopState.search || shopState.sort !== "default") {
-      const sourceKey = "search_sort";
-      
-      // 1. إذا لم نقم بفلترتها وترتيبها بعد، نقوم بجلب كل شيء وترتيبه وحفظه في الذاكرة
-      if (!page.cursors[sourceKey]) {
-        const all = await Store.loadAllProductsFromFirebase();
-        if (token !== page.token) return;
-        
-        let filteredSortedList = (all || []).slice();
-        
-        // تطبيق فلتر القسم إن وجد
-        if (shopState.categoryId !== "all") {
-          const categories = Store.getCategories();
-          const selected = categories.find(function(c) { return c.id === shopState.categoryId; });
-          const allowedIds = new Set([shopState.categoryId]);
-          if (selected && !selected.parentId) {
-            categories.filter(function(c) { return c.parentId === selected.id; }).forEach(function(c) { allowedIds.add(c.id); });
-          }
-          filteredSortedList = filteredSortedList.filter(function(p) { return allowedIds.has(p.categoryId); });
-        }
-
-        // تطبيق فلتر مميز/عروض/جديد إن وجد
-        if (shopState.filterMode === "featured") filteredSortedList = filteredSortedList.filter(function(p) { return !!p.featured; });
-        else if (shopState.filterMode === "offer") filteredSortedList = filteredSortedList.filter(function(p) { return !!p.isOffer; });
-        else if (shopState.filterMode === "new") filteredSortedList = filteredSortedList.filter(function(p) { return !!p.isNew; });
-
-        // تطبيق البحث
-        if (shopState.search) {
-          const q = shopState.search.toLowerCase();
-          filteredSortedList = filteredSortedList.filter(function (p) { return (p.name || "").toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q); });
-        }
-
-        // تطبيق الترتيب
-        switch (shopState.sort) {
-          case "price-asc": filteredSortedList.sort(function (a, b) { return a.price - b.price; }); break;
-          case "price-desc": filteredSortedList.sort(function (a, b) { return b.price - a.price; }); break;
-          case "name": filteredSortedList.sort(function (a, b) { return (a.name || "").localeCompare((b.name || ""), "ar"); }); break;
-          default: break;
-        }
-
-        page.cursors[sourceKey] = { list: filteredSortedList, index: 0 };
-      }
-
-      // 2. سحب الدفعة الحالية من القائمة المرتبة الجاهزة
-      const state = page.cursors[sourceKey];
-      const addedBatch = state.list.slice(state.index, state.index + SHOP_PAGE_SIZE);
-      state.index += addedBatch.length;
-      page.done = state.index >= state.list.length;
-      
-      // 3. إضافتها لمنتجات الصفحة وعرضها
-      const seen = new Set(page.products.map(function(p) { return p.id; }));
-      addedBatch.forEach(function(p) {
-        if (p && !seen.has(p.id)) {
-          seen.add(p.id);
-          page.products.push(p);
-        }
-      });
-      return;
-    }
-
     let added = [];
 
+    // 1. الفلترة حسب الحقول المميزة / العروض / جديد بنظام الدفعات السحابي
     if (shopState.filterMode === "featured" || shopState.filterMode === "offer" || shopState.filterMode === "new") {
       const map = { featured: ["featured", true], offer: ["isOffer", true], new: ["isNew", true] };
       const cfg = map[shopState.filterMode];
-      const sourceKey = "field:" + cfg[0] + ":" + cfg[1];
+      const sourceKey = "field:" + cfg[0];
       const cursor = page.cursors[sourceKey] || null;
+      
       const result = await Store.loadProductsPageByField(cfg[0], cfg[1], SHOP_PAGE_SIZE, cursor);
       if (token !== page.token) return;
       added = result.products;
       page.cursors[sourceKey] = result.nextCursor;
       page.done = result.done;
-    } else if (shopState.categoryId === "all") {
-      const sourceKey = "all";
-      const result = await Store.loadProductsPage(SHOP_PAGE_SIZE, page.cursors[sourceKey] || null);
+    } 
+    // 2. الفلترة حسب القسم بنظام الدفعات الصارم (Pagination)
+    else if (shopState.categoryId !== "all") {
+      const sourceKey = "cat:" + shopState.categoryId;
+      const cursor = page.cursors[sourceKey] || null;
+
+      const result = await Store.loadProductsPageByCategory(shopState.categoryId, SHOP_PAGE_SIZE, cursor);
       if (token !== page.token) return;
       added = result.products;
       page.cursors[sourceKey] = result.nextCursor;
       page.done = result.done;
-    } else {
-      const sourceKey = "cat:" + shopState.categoryId;
-      
-      // 1. جلب كل منتجات القسم مرة واحدة وحفظها في الذاكرة للتقسيم المحلي
-      if (!page.cursors[sourceKey]) {
-        const categories = Store.getCategories();
-        const selected = categories.find(function(c) { return c.id === shopState.categoryId; });
-        const ids = [shopState.categoryId];
-        if (selected && !selected.parentId) {
-          categories.filter(function(c) { return c.parentId === selected.id; }).forEach(function(c) { ids.push(c.id); });
-        }
-
-        let allCatProducts = [];
-        for (let i = 0; i < ids.length; i++) {
-          const catProducts = await Store.loadProductsByCategory(ids[i]);
-          if (token !== page.token) return;
-          allCatProducts = allCatProducts.concat(catProducts);
-        }
-        page.cursors[sourceKey] = { list: allCatProducts, index: 0 };
-      }
-      
-      // 2. سحب دفعة من القائمة المحفوظة
-      const state = page.cursors[sourceKey];
-      added = state.list.slice(state.index, state.index + SHOP_PAGE_SIZE);
-      state.index += added.length;
-      
-      // 3. إخفاء زر "تحميل المزيد" فقط إذا وصلنا لنهاية المنتجات
-      page.done = state.index >= state.list.length;
+    } 
+    // 3. عرض كافة المنتجات بالدفعات (12 منتجاً في كل طلب)
+    else {
+      const sourceKey = "all";
+      const cursor = page.cursors[sourceKey] || null;
+      const result = await Store.loadProductsPage(SHOP_PAGE_SIZE, cursor);
+      if (token !== page.token) return;
+      added = result.products;
+      page.cursors[sourceKey] = result.nextCursor;
+      page.done = result.done;
     }
 
     const seen = new Set(page.products.map(function(p) { return p.id; }));
@@ -435,27 +359,17 @@ async function renderShopResults(options) {
 
   let list = shopState.pagination.products.slice();
 
-  if (shopState.categoryId !== "all") {
-    const categories = Store.getCategories();
-    const selected = categories.find(function(c) { return c.id === shopState.categoryId; });
-    const allowedIds = new Set([shopState.categoryId]);
-    if (selected && !selected.parentId) {
-      categories.filter(function(c) { return c.parentId === selected.id; }).forEach(function(c) { allowedIds.add(c.id); });
-    }
-    list = list.filter(function(p) { return allowedIds.has(p.categoryId); });
-  }
-
-  if (shopState.filterMode) {
-    if (shopState.filterMode === "featured") list = list.filter(function(p) { return !!p.featured; });
-    else if (shopState.filterMode === "offer") list = list.filter(function(p) { return !!p.isOffer; });
-    else if (shopState.filterMode === "new") list = list.filter(function(p) { return !!p.isNew; });
-  }
-
+  // تصفية البحث محلياً على المنتجات المحملة لمنع استنزاف السيرفر
   if (shopState.search) {
     const q = shopState.search.toLowerCase();
-    list = list.filter(function (p) { return (p.name || "").toLowerCase().includes(q) || (p.description || "").toLowerCase().includes(q); });
+    list = list.filter(function (p) { 
+      return (p.name || "").toLowerCase().includes(q) || 
+             (p.description || "").toLowerCase().includes(q) ||
+             (p.barcode && String(p.barcode).toLowerCase().includes(q)); 
+    });
   }
 
+  // ترتيب المنتجات المعروضة
   switch (shopState.sort) {
     case "price-asc": list.sort(function (a, b) { return a.price - b.price; }); break;
     case "price-desc": list.sort(function (a, b) { return b.price - a.price; }); break;
@@ -463,8 +377,9 @@ async function renderShopResults(options) {
     default: break;
   }
 
+  // شريط الأقسام الفرعية العلوي
   const subCatContainerId = "subCategoryScroller";
-  let subCatContainer = document.getElementById("subCategoryScroller");
+  let subCatContainer = document.getElementById(subCatContainerId);
   if (shopState.categoryId !== "all" && !shopState.filterMode) {
     const currentCat = Store.getCategories().find(function(c) { return c.id === shopState.categoryId; });
     const parentId = currentCat ? (currentCat.parentId || currentCat.id) : null;
@@ -496,7 +411,6 @@ async function renderShopResults(options) {
 
   renderGridInto("shopGrid", list, emptyMsg);
   
-  // إخفاء عداد عدد المنتجات ليبقى المظهر نظيفاً للزبون
   const countEl = document.getElementById("resultCount");
   if (countEl) countEl.style.display = "none";
 
@@ -517,7 +431,6 @@ async function initHomeCollections() {
 
   if (!featuredEl && !offerEl && !newEl && !catEl) return;
 
-  // 1. رسم الأقسام فوراً دون انتظار أي طلب شبكة لأنها مخزنة محلياً
   if (catEl) {
     const categories = Store.getCategories();
     const mainCategories = categories.filter(function(c) { return !c.parentId; });
@@ -527,25 +440,19 @@ async function initHomeCollections() {
     }).join("");
   }
 
-  // 2. وضع الهيكل العظمي (Skeleton) لـ 4 بطاقات فقط لكل قسم لتخفيف وزن الـ DOM
   if(featuredEl) featuredEl.innerHTML = renderSkeletonCards(4);
   if(offerEl) offerEl.innerHTML = renderSkeletonCards(4);
   if(newEl) newEl.innerHTML = renderSkeletonCards(4);
 
   try {
-    // 3. الأولوية الأولى: جلب المميزة أولاً وبشكل منفصل ليرى الزائر المنتجات فوراً (4 منتجات فقط)
     if (featuredEl) {
       const featuredRes = await Store.loadProductsPageByField("featured", true, 4, null);
       renderGridInto("featuredGrid", featuredRes.products, "لا توجد منتجات مميزة حاليًا.");
     }
-
-    // 4. جلب العروض في المرحلة الثانية
     if (offerEl) {
       const offerRes = await Store.loadProductsPageByField("isOffer", true, 4, null);
       renderGridInto("offerGrid", offerRes.products, "لا توجد عروض حاليًا.");
     }
-
-    // 5. جلب وصل حديثاً في المرحلة الأخيرة
     if (newEl) {
       const newRes = await Store.loadProductsPageByField("isNew", true, 4, null);
       renderGridInto("newGrid", newRes.products, "لا توجد منتجات جديدة حاليًا.");
@@ -864,6 +771,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initShopPage();
   initProductDetailPage();
 });
+
 document.addEventListener("store:synced", function () {
   initHomeCollections();
   if (document.getElementById("shopGrid")) {
