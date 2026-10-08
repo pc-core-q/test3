@@ -1,10 +1,8 @@
 /* ==========================================================================
    app.js
-   منطق مشترك بين كل صفحات المتجر: رسم الهيدر والفوتر، القائمة، الإشعارات.
-   تم التحديث: بحث عام خفيف بنظام الدفعات يدعم الباركود ويوفر باندويث Firebase.
+   منطق المتجر المشترك والبحث السريع المطور
    ========================================================================== */
 
-/* ---------- أدوات التهريب المشتركة (متاحة لكل الصفحات) ---------- */
 function escapeHtml(str) {
   if (str === null || str === undefined) return "";
   return String(str)
@@ -19,8 +17,6 @@ function jsStr(value) {
   return escapeHtml(JSON.stringify(String(value === null || value === undefined ? "" : value)));
 }
 
-// ====== الحيلة العبقرية لـ ImageKit ======
-// تجبر السيرفر دائماً على تسليم صيغة WebP فائقة النقاء والصغر بدلاً من JPEG
 window.getIkUrl = function(url, width, quality) {
   if (!url || typeof url !== 'string' || !url.includes("ik.imagekit.io")) return url;
   quality = quality || 85;
@@ -31,7 +27,6 @@ window.getIkUrl = function(url, width, quality) {
     return url.replace(/(ik\.imagekit\.io\/[^\/]+\/)/, "$1" + trString + "/");
   }
 };
-// ==========================================
 
 const NAV_LINKS = [
   { href: "index.html", label: "الرئيسية", key: "home", icon: "home" },
@@ -97,7 +92,7 @@ function renderHeader() {
       '<div class="global-search-container">' +
         '<div class="global-search-header">' +
           '<div class="search-box" style="flex:1;margin:0;">' +
-            '<input type="text" id="globalSearchInput" placeholder="ابحث عن منتج أو باركود..." autocomplete="off">' +
+            '<input type="text" id="globalSearchInput" placeholder="ابحث عن منتج أو باركود ثم اضغط Enter..." autocomplete="off">' +
             '<span>' + iconSvg("search") + '</span>' +
           '</div>' +
           '<button type="button" class="btn-icon" id="closeGlobalSearch" aria-label="إغلاق">' + iconSvg("close") + '</button>' +
@@ -206,7 +201,7 @@ function initGlobalSearch() {
   openBtn.addEventListener("click", function() {
       overlay.classList.add("open");
       input.value = "";
-      resultsBox.innerHTML = '<div class="empty-search">اكتب اسم المنتج أو الباركود للبحث...</div>';
+      resultsBox.innerHTML = '<div class="empty-search">اكتب اسم المنتج أو الباركود للبحث، أو اضغط Enter للبحث الشامل...</div>';
       setTimeout(() => input.focus(), 100); 
   });
 
@@ -216,6 +211,15 @@ function initGlobalSearch() {
 
   overlay.addEventListener("click", function(e) {
       if(e.target === overlay) overlay.classList.remove("open");
+  });
+
+  input.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+      const q = input.value.trim();
+      if (q) {
+        window.location.href = "products.html?q=" + encodeURIComponent(q);
+      }
+    }
   });
 
   let searchTimeout;
@@ -230,12 +234,10 @@ function initGlobalSearch() {
       resultsBox.innerHTML = '<div class="empty-search">جاري البحث...</div>';
 
       searchTimeout = setTimeout(async function() {
-          // البحث أولاً في الذاكرة الحالية لتوفير استهلاك الباندويث
           let pool = Store.getProducts();
 
-          // إذا كانت الذاكرة فارغة، نطلب دفعة تمهيدية بحد أقصى 25 منتجاً
           if (!pool || pool.length === 0) {
-              const batch = await Store.loadProductsPage(25, null);
+              const batch = await Store.loadProductsPage(30, null);
               pool = batch.products || [];
           }
 
@@ -244,10 +246,21 @@ function initGlobalSearch() {
               (p.barcode && String(p.barcode).toLowerCase().includes(query)) ||
               (p.sku && String(p.sku).toLowerCase().includes(query)) ||
               (p.description && p.description.toLowerCase().includes(query))
-          ).slice(0, 8); // الاكتفاء بأول 8 عناصر متطابقة لأقصى سرعة واستجابة
+          ).slice(0, 8);
+
+          let searchAllHtml = `
+            <div style="text-align:center; padding: 12px 0; border-top: 1px solid var(--line);">
+              <a href="products.html?q=${encodeURIComponent(query)}" class="btn btn-outline btn-sm" style="width:100%;">
+                🔍 عرض كافة النتائج المطابقة لـ "${escapeHtml(query)}" في المتجر
+              </a>
+            </div>
+          `;
 
           if(matched.length === 0) {
-              resultsBox.innerHTML = '<div class="empty-search">لا توجد منتجات مطابقة لـ "' + escapeHtml(query) + '"</div>';
+              resultsBox.innerHTML = `
+                <div class="empty-search">لا توجد منتجات مطابقة في المعاينة السريعة.</div>
+                ${searchAllHtml}
+              `;
               return;
           }
 
@@ -262,7 +275,7 @@ function initGlobalSearch() {
                       </div>
                   </a>
               `;
-          }).join("");
+          }).join("") + searchAllHtml;
       }, 300);
   });
 }
@@ -382,8 +395,6 @@ function initBackToTop() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 }
-
-function fixRelativePaths(scope) { /* no-op */ }
 
 document.addEventListener("DOMContentLoaded", function () {
   renderHeader();
