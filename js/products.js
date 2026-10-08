@@ -59,8 +59,9 @@ function renderProductCard(product) {
   }
 
   const actionButtonHtml = hasOptions
-    ? '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="btn btn-primary" title="خيارات المنتج" style="font-size:0.8rem;padding:0 10px;width:auto;border-radius:var(--radius-pill);">' +
-        'الخيارات' +
+    ? '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="btn-options" title="اختر اللون أو المقاس">' +
+        iconSvg("layers") +
+        '<span>الخيارات</span>' +
       '</a>'
     : '<button class="btn btn-primary" ' + (outOfStock ? "disabled" : "") +
         ' title="' + (outOfStock ? "غير متوفر" : "أضف للسلة") + '"' +
@@ -285,7 +286,6 @@ function renderCategoryFilterPanel() {
   });
 }
 
-// دالة لجلب كل المعرفات التابعة لقسم معين (القسم نفسه + تفرعاته)
 function getCategoryTargetIds(targetCatId) {
   if (!targetCatId || targetCatId === "all") return null;
   const categories = Store.getCategories();
@@ -293,13 +293,11 @@ function getCategoryTargetIds(targetCatId) {
   
   if (!targetCat) return [targetCatId];
 
-  // إذا كان قسماً رئيسياً، نجمع كل الأقسام الفرعية التي تتبع له
   if (!targetCat.parentId) {
     const subCatIds = categories.filter(c => c.parentId === targetCat.id).map(c => c.id);
     return [targetCat.id, ...subCatIds];
   }
 
-  // إذا كان قسماً فرعياً محدداً بذاته
   return [targetCat.id];
 }
 
@@ -316,7 +314,6 @@ async function loadAndRenderShop(reset) {
   try {
     let rawList = [];
 
-    // 1. جلب البيانات بناءً على الفلتر أو القسم وتفرعاته
     if (shopState.filterMode === "featured") {
       rawList = await Store.loadProductsByField("featured", true, "featured", false);
     } else if (shopState.filterMode === "offer") {
@@ -327,7 +324,6 @@ async function loadAndRenderShop(reset) {
       const targetIds = getCategoryTargetIds(shopState.categoryId);
       
       if (targetIds && targetIds.length > 1) {
-        // قسم رئيسي مع فروعه: جلب كل الأقسام بالتوازي ودمجها بدون تكرار
         const results = await Promise.all(targetIds.map(id => Store.loadProductsByCategory(id, false)));
         const seen = new Set();
         rawList = [];
@@ -338,7 +334,6 @@ async function loadAndRenderShop(reset) {
           }
         });
       } else {
-        // قسم فرعي محدد أو قسم بدون فروع
         rawList = await Store.loadProductsByCategory(shopState.categoryId, false);
       }
     } else {
@@ -347,7 +342,6 @@ async function loadAndRenderShop(reset) {
 
     rawList = rawList || [];
 
-    // 2. تصفية البحث النصي والباركود
     if (shopState.search) {
       const q = shopState.search.toLowerCase();
       rawList = rawList.filter(function (p) { 
@@ -358,7 +352,6 @@ async function loadAndRenderShop(reset) {
       });
     }
 
-    // 3. ترتيب كامل المجموعة التابعة للقسم/الفلتر قبل عرضها
     switch (shopState.sort) {
       case "price-asc": 
         rawList.sort(function (a, b) { return (Number(a.price) || 0) - (Number(b.price) || 0); }); 
@@ -376,7 +369,6 @@ async function loadAndRenderShop(reset) {
     shopState.allFilteredList = rawList;
     shopState.visibleCount = Math.min(shopState.visibleCount + SHOP_PAGE_SIZE, shopState.allFilteredList.length);
 
-    // 4. تحديث شريط الأقسام الفرعية العلوي
     const subCatContainerId = "subCategoryScroller";
     let subCatContainer = document.getElementById(subCatContainerId);
     if (shopState.categoryId !== "all" && !shopState.filterMode) {
@@ -403,7 +395,6 @@ async function loadAndRenderShop(reset) {
       }
     } else if (subCatContainer) subCatContainer.style.display = "none";
 
-    // 5. رسم المنتجات وتحديث زر "تحميل المزيد"
     let emptyMsg = "لا توجد منتجات مطابقة لهذا القسم حاليًا.";
     if (shopState.filterMode === "featured") emptyMsg = "عذراً، لا توجد منتجات مميزة في المتجر حالياً.";
     else if (shopState.filterMode === "offer") emptyMsg = "عذراً، لا توجد عروض وتخفيضات حالياً.";
