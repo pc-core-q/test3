@@ -197,13 +197,16 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
 }
 
 /* ==========================================================================
-   Product cards — تصميم البطاقة الملمومة وشبه المربعة
+   Product cards — تصميم البطاقة المحسّن (حجم أكبر وأوضح)
    ========================================================================== */
-.product-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px 12px}
+.product-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:16px 14px;
+}
 .product-card{
   background:#fff!important;
   border:1px solid var(--line-strong)!important;
-  border-radius:var(--r-card)!important;
+  border-radius:16px!important;
   box-shadow:0 2px 8px rgba(0,0,0,0.04)!important;
   overflow:hidden!important;
   display:flex;
@@ -216,9 +219,9 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   border-color:var(--olive-400)!important;
 }
 
-/* نسبة ارتفاع الصورة أصبحت أقصر لتجعل الإجمالي شبه مربع */
+/* ارتفاع متناسق للصورة لإبراز تفاصيل المنتج */
 .product-media{
-  aspect-ratio: 1.15 / 1 !important;
+  aspect-ratio: 1 / 1.05 !important;
   width:100% !important;
   border-radius:0!important;
   background:#eceff3;
@@ -234,18 +237,19 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
 .product-card:hover .product-media>img{transform:scale(1.04)}
 
 .badge{
-  top:6px !important;
-  right:6px !important;
-  padding:3px 7px !important;
-  border-radius:6px !important;
-  font-size:.68rem !important;
+  top:8px !important;
+  right:8px !important;
+  padding:4px 8px !important;
+  border-radius:8px !important;
+  font-size:.74rem !important;
+  font-weight:700 !important;
   box-shadow:none !important;
 }
-.badge-out-abs{top:6px !important;left:6px !important;right:auto !important}
+.badge-out-abs{top:8px !important;left:8px !important;right:auto !important}
 
-/* قسم نصوص ملموم ومضغوط الارتفاع */
+/* مساحة النصوص والمعلومات */
 .product-body{
-  padding: 8px 10px !important;
+  padding: 10px 12px 12px !important;
   display:flex;
   flex-direction:column;
   flex:1;
@@ -255,36 +259,35 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
 .product-cat{
   color:var(--ink-400);
   font-weight:600;
-  margin-bottom:2px !important;
-  font-size:.72rem !important;
+  margin-bottom:4px !important;
+  font-size:.78rem !important;
   line-height: 1.2;
 }
 
 .product-name{
   font-family:var(--font-body);
-  font-size:.86rem !important;
+  font-size:.95rem !important;
   font-weight:700 !important;
-  line-height:1.25 !important;
+  line-height:1.35 !important;
   min-height:0 !important;
-  margin:0 0 4px !important;
+  margin:0 0 6px !important;
   display:-webkit-box !important;
-  -webkit-line-clamp:1 !important; /* حصر العنوان في سطر واحد لتقصير البطاقة */
+  -webkit-line-clamp:2 !important;
   -webkit-box-orient:vertical !important;
   overflow:hidden !important;
 }
 .product-name a:hover{color:var(--olive-600)}
 
-/* دوائر الألوان مدمجة دون مسافات مهدرة */
 .product-body-colors{
   display:flex;
   align-items:center;
-  gap:4px;
+  gap:5px;
   min-height:0 !important;
-  margin:0 0 4px !important;
+  margin:0 0 6px !important;
 }
 .card-color-dot{
-  width:12px !important;
-  height:12px !important;
+  width:14px !important;
+  height:14px !important;
 }
 
 .product-foot{
@@ -292,20 +295,20 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:6px;
-  padding-top: 2px;
+  gap:8px;
+  padding-top: 4px;
 }
 .price{
-  font-size:.92rem !important;
+  font-size:1rem !important;
   font-weight:800;
   color:var(--olive-900);
-  line-height: 1;
+  line-height: 1.1;
 }
 
 .product-actions .btn{
-  width:32px !important;
-  height:32px !important;
-  min-height:32px !important;
+  width:36px !important;
+  height:36px !important;
+  min-height:36px !important;
   border-radius:var(--r-ctl);
   background:var(--olive-50);
   color:var(--olive-900);
@@ -314,54 +317,55 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   padding:0 !important;
 }
 .product-actions .btn svg{
-  width: 15px !important;
-  height: 15px !important;
+  width: 18px !important;
+  height: 18px !important;
 }
 .product-actions .btn:hover:not(:disabled){background:var(--olive-900);color:#fff}
 
 @media(max-width:1024px){.product-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
+/* شاشات الجوال: توسيع الشبكة وإعطاء البطاقات حجماً أوضح */
 @media(max-width:650px){
   .product-grid{
     grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-    gap:10px 8px !important;
+    gap:12px 10px !important;
   }
   .product-media{
-    aspect-ratio: 1.1 / 1 !important;
+    aspect-ratio: 1 / 1 !important;
   }
   .product-name{
-    font-size:.82rem !important;
-    -webkit-line-clamp:1 !important;
+    font-size:.9rem !important;
+    -webkit-line-clamp:2 !important;
   }
   .product-body{
-    padding:6px 8px !important;
+    padding:8px 10px 10px !important;
   }
   .product-actions .btn{
-    width:30px !important;
-    height:30px !important;
-    min-height:30px !important;
+    width:34px !important;
+    height:34px !important;
+    min-height:34px !important;
   }
   .price{
-    font-size:.85rem !important;
+    font-size:.95rem !important;
   }
 }
 
-/* Homepage rails scroll sideways on phones */
+/* تكبير البطاقات في السلايدر الأفقي بالصفحة الرئيسية */
 @media(max-width:767px){
   #featuredGrid,#offerGrid,#newGrid{
     display:flex;
     overflow-x:auto;
-    gap:10px;
+    gap:14px;
     margin-inline:-16px;
-    padding:4px 16px 10px;
+    padding:6px 16px 14px;
     scroll-padding-inline:16px;
     scroll-snap-type:x mandatory;
     scrollbar-width:none;
   }
   #featuredGrid::-webkit-scrollbar,#offerGrid::-webkit-scrollbar,#newGrid::-webkit-scrollbar{display:none}
   #featuredGrid .product-card,#offerGrid .product-card,#newGrid .product-card{
-    flex:0 0 44% !important; /* تقليل العرض من 52% لجعل شكلها مربعاً ومتناسقاً */
-    max-width: 175px !important;
+    flex:0 0 58% !important;
+    max-width: 220px !important;
     scroll-snap-align:start;
   }
 }
@@ -572,7 +576,7 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   animation-name: shimmer;
   animation-timing-function: linear;
   border-radius: var(--r-card);
-  height: 240px !important; /* تقصير ارتفاع السكلتون ليطابق شكل البطاقة الجديد */
+  height: 280px !important;
 }
 
 /* Back to Top Button */
