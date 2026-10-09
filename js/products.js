@@ -22,6 +22,16 @@ function renderSkeletonCards(count) {
   return html;
 }
 
+// دالة فحص خيارات المنتج
+function productHasOptions(product) {
+  if (!product) return false;
+  const hasColors = Array.isArray(product.colors) && product.colors.length > 0;
+  const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
+  const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
+  const hasMatrix = typeof Store !== "undefined" && typeof Store.hasVariantMatrix === "function" && Store.hasVariantMatrix(product);
+  return hasColors || hasSizes || hasVariants || hasMatrix;
+}
+
 function renderProductCard(product) {
   const outOfStock = !Store.isProductAvailable(product);
   const badges = [];
@@ -54,6 +64,15 @@ function renderProductCard(product) {
     }
   }
 
+  const hasOptions = productHasOptions(product);
+
+  // أيقونة خيارات مختلفة إن كان المنتج يحتوي ألواناً أو مقاسات لتجنب إيهام العميل
+  const actionIcon = hasOptions
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:block;margin:auto;"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>'
+    : iconSvg("cart");
+
+  const actionTitle = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات والمواصفات" : "أضف للسلة");
+
   return (
     '<article class="product-card">' +
       '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="product-media">' +
@@ -68,9 +87,9 @@ function renderProductCard(product) {
           '<span class="price">' + formatPrice(product.price) + "</span>" +
           '<div class="product-actions">' +
             '<button class="btn btn-primary" ' + (outOfStock ? "disabled" : "") +
-              ' title="' + (outOfStock ? "غير متوفر" : "أضف للسلة") + '"' +
+              ' title="' + actionTitle + '"' +
               ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
-              iconSvg("cart") +
+              actionIcon +
             "</button>" +
           "</div>" +
         "</div>" +
@@ -90,13 +109,15 @@ async function quickAddToCart(productId) {
 
   if (!product || !Store.isProductAvailable(product)) return;
 
-  const hasOptions = (product.variants && product.variants.length > 0) || Store.hasVariantMatrix(product);
-  if (hasOptions) {
+  if (productHasOptions(product)) {
       window.location.href = 'product.html?id=' + encodeURIComponent(productId);
       return;
   }
   Store.addToCart(productId, 1);
   showToast(product.name + " أُضيف إلى السلة", "success");
+  if (typeof window.updateCartBadge === "function") {
+    window.updateCartBadge();
+  }
 }
 
 function renderGridInto(containerId, products, emptyMessage) {
@@ -289,7 +310,6 @@ async function fetchNextShopBatch(token) {
   try {
     let added = [];
 
-    // 1. الفلترة حسب الحقول المميزة / العروض / جديد بنظام الدفعات السحابي
     if (shopState.filterMode === "featured" || shopState.filterMode === "offer" || shopState.filterMode === "new") {
       const map = { featured: ["featured", true], offer: ["isOffer", true], new: ["isNew", true] };
       const cfg = map[shopState.filterMode];
@@ -302,7 +322,6 @@ async function fetchNextShopBatch(token) {
       page.cursors[sourceKey] = result.nextCursor;
       page.done = result.done;
     } 
-    // 2. الفلترة حسب القسم بنظام الدفعات الصارم (Pagination)
     else if (shopState.categoryId !== "all") {
       const sourceKey = "cat:" + shopState.categoryId;
       const cursor = page.cursors[sourceKey] || null;
@@ -313,7 +332,6 @@ async function fetchNextShopBatch(token) {
       page.cursors[sourceKey] = result.nextCursor;
       page.done = result.done;
     } 
-    // 3. عرض كافة المنتجات بالدفعات (12 منتجاً في كل طلب)
     else {
       const sourceKey = "all";
       const cursor = page.cursors[sourceKey] || null;
@@ -359,7 +377,6 @@ async function renderShopResults(options) {
 
   let list = shopState.pagination.products.slice();
 
-  // تصفية البحث محلياً على المنتجات المحملة لمنع استنزاف السيرفر
   if (shopState.search) {
     const q = shopState.search.toLowerCase();
     list = list.filter(function (p) { 
@@ -369,7 +386,6 @@ async function renderShopResults(options) {
     });
   }
 
-  // ترتيب المنتجات المعروضة
   switch (shopState.sort) {
     case "price-asc": list.sort(function (a, b) { return a.price - b.price; }); break;
     case "price-desc": list.sort(function (a, b) { return b.price - a.price; }); break;
@@ -377,7 +393,6 @@ async function renderShopResults(options) {
     default: break;
   }
 
-  // شريط الأقسام الفرعية العلوي
   const subCatContainerId = "subCategoryScroller";
   let subCatContainer = document.getElementById(subCatContainerId);
   if (shopState.categoryId !== "all" && !shopState.filterMode) {
@@ -653,6 +668,9 @@ async function initProductDetailPage() {
         const itemKey = buildCartItemKey(product.id, meta);
         Store.addToCart(itemKey, qty, meta);
         showToast(product.name + " أُضيف إلى السلة", "success");
+        if (typeof window.updateCartBadge === "function") {
+          window.updateCartBadge();
+        }
       });
     }
     if (orderBtn) {
