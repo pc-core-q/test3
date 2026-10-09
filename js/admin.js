@@ -1,7 +1,7 @@
 /* ==========================================================================
    admin.js
    منطق لوحة تحكم الأدمن بالكامل (admin.html). 
-   تم التحديث: دعم الباركود (SKU)، مزامنة الأسعار والمخزون من ملفات Excel و CSV عبر SheetJS.
+   تم التحديث: دعم الشعار الديناميكي في Firebase، الباركود، واستيراد الإكسل.
    ========================================================================== */
 
 let editingProductId = null;
@@ -10,6 +10,7 @@ let editingAdId = null;
 let pendingProductImage = null; 
 let pendingCategoryImage = null; 
 let pendingAdImage = null; 
+let pendingStoreLogo = null;  // شعار المتجر الجديد الجاري رفعه
 let pendingColors = [];       // [{ name, hex, image }]
 let pendingSizes = [];        // ["S", "M", ...]
 let pendingInventory = {};    // { "لون||مقاس": qty }
@@ -26,16 +27,13 @@ async function initAdminPage() {
     if (!isAuthed) return;
   }
 
-  // لوحة الأدمن تحتاج القائمة الكاملة، بينما المتجر العام لا يسحبها.
   await Store.loadAllProductsFromFirebase();
-  // جلب أحدث الطلبات من السيرفر فور فتح لوحة التحكم
   await Store.loadOrdersFromFirebase();
 
   wireSidebarNav();
   const logoutBtn = document.getElementById("adminLogoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", handleAdminLogout);
   
-  // زر الهامبرغر لفتح القائمة الجانبية (إذا كان موجوداً)
   const sidebarToggle = document.getElementById("adminSidebarToggle");
   if (sidebarToggle) {
     sidebarToggle.addEventListener("click", toggleAdminSidebar);
@@ -55,7 +53,7 @@ async function initAdminPage() {
   wireCategoryModal();
   wireAdModal(); 
   wireSettingsForm();
-  wireExcelSync(); // تفعيل استيراد ومزامنة الإكسل
+  wireExcelSync();
 
   const productSearch = document.getElementById("adminProductSearch");
   if (productSearch) productSearch.addEventListener("input", renderProductsTable);
@@ -98,20 +96,17 @@ function wireExcelSync() {
         let updatedCount = 0;
 
         for (const row of rows) {
-          // قراءة الباركود بمختلف المسميات المحتملة
           const barcode = String(
             row["الباركود"] || row["باركود"] || row["كود المادة"] || row["كود"] || 
             row["barcode"] || row["Barcode"] || row["BARCODE"] || 
             row["sku"] || row["SKU"] || ""
           ).trim();
 
-          // قراءة اسم المنتج كخيار بحث بديل في حال لم يتوفر الباركود
           const productName = String(
             row["اسم المنتج"] || row["الاسم"] || row["المادة"] || 
             row["name"] || row["Name"] || ""
           ).trim().toLowerCase();
 
-          // قراءة السعر والكمية
           const rawPrice = row["السعر"] || row["سعر البيع"] || row["سعر المفرد"] || row["price"] || row["Price"];
           const rawStock = row["الكمية"] || row["المخزون"] || row["الرصيد"] || row["stock"] || row["Stock"] || row["qty"] || row["Qty"];
 
@@ -139,7 +134,6 @@ function wireExcelSync() {
             if (!isNaN(newStock) && newStock >= 0 && newStock !== product.stock) {
               patch.stock = newStock;
               product.stock = newStock;
-              // إذا كان المنتج يمتلك تفريعات ألوان/مقاسات ولا يوجد تفصيل بالملف، يتم تحديث إجمالي المخزون
               modified = true;
             }
 
@@ -710,7 +704,7 @@ async function saveProductForm(e) {
 
   const data = {
     barcode: barcodeVal,
-    sku: barcodeVal, // حفظ كـ barcode و sku لضمان التوافق مع أي تسمية
+    sku: barcodeVal,
     name: document.getElementById("productName").value.trim(),
     description: document.getElementById("productDescription").value.trim(),
     price: Number(document.getElementById("productPrice").value) || 0,
@@ -1192,13 +1186,25 @@ function renderOrdersTable() {
 }
 
 /* ---------------------------------------------------------------------- */
-/* إعدادات المتجر                                                       */
+/* إعدادات المتجر والشعار الديناميكي                                      */
 /* ---------------------------------------------------------------------- */
 
 function fillSettingsForm() {
   const form = document.getElementById("settingsForm");
   if (!form) return;
   const s = Store.getSettings();
+
+  pendingStoreLogo = s.logo || null;
+  const previewImg = document.getElementById("settingLogoImg");
+  if (previewImg) {
+    previewImg.src = s.logo ? (typeof window.getIkUrl === "function" ? window.getIkUrl(s.logo, 150, 85) : s.logo) : "assets/logo/logo.png";
+  }
+
+  const adminSidebarLogo = document.getElementById("adminHeaderLogo");
+  if (adminSidebarLogo && s.logo) {
+    adminSidebarLogo.src = typeof window.getIkUrl === "function" ? window.getIkUrl(s.logo, 100, 85) : s.logo;
+  }
+
   form.storeName.value = s.storeName || "";
   form.storeTagline.value = s.storeTagline || "";
   form.storeDescription.value = s.storeDescription || "";
@@ -1215,10 +1221,41 @@ function fillSettingsForm() {
 function wireSettingsForm() {
   const form = document.getElementById("settingsForm");
   if (!form) return;
+
+  const logoInput = document.getElementById("settingLogoInput");
+  if (logoInput) {
+    logoInput.addEventListener("change", async function () {
+      const file = logoInput.files[0];
+      if (!file) return;
+      try {
+        showToast("جاري رفع شعار المتجر الجديد...");
+        const url = await uploadToImgBB(file, false);
+        pendingStoreLogo = url;
+        const previewImg = document.getElementById("settingLogoImg");
+        if (previewImg) previewImg.src = url;
+        showToast("تم رفع الشعار بنجاح! لا تنسَ حفظ الإعدادات.", "success");
+      } catch (err) {
+        showToast(err.message || "فشل رفع الشعار.", "error");
+      }
+    });
+  }
+
+  const removeLogoBtn = document.getElementById("removeSettingLogoBtn");
+  if (removeLogoBtn) {
+    removeLogoBtn.addEventListener("click", function () {
+      pendingStoreLogo = "";
+      const previewImg = document.getElementById("settingLogoImg");
+      if (previewImg) previewImg.src = "assets/logo/logo.png";
+      if (logoInput) logoInput.value = "";
+      showToast("تم اختيار الشعار الافتراضي. اضغط حفظ للاعتماد.");
+    });
+  }
+
   form.addEventListener("submit", function (e) {
     e.preventDefault();
 
     const patch = {
+      logo: pendingStoreLogo !== null ? pendingStoreLogo : (Store.getSettings().logo || ""),
       storeName: form.storeName.value.trim(),
       storeTagline: form.storeTagline.value.trim(),
       storeDescription: form.storeDescription.value.trim(),
@@ -1233,7 +1270,13 @@ function wireSettingsForm() {
     };
 
     Store.saveSettings(patch);
-    showToast("تم حفظ الإعدادات بنجاح", "success");
+    
+    const adminSidebarLogo = document.getElementById("adminHeaderLogo");
+    if (adminSidebarLogo) {
+      adminSidebarLogo.src = patch.logo ? (typeof window.getIkUrl === "function" ? window.getIkUrl(patch.logo, 100, 85) : patch.logo) : "assets/logo/logo.png";
+    }
+
+    showToast("تم حفظ إعدادات وشعار المتجر بنجاح", "success");
   });
 }
 
