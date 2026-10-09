@@ -899,3 +899,53 @@ body:has(#detailActions) #backToTopBtn {
 .icon-choice input{position:absolute;opacity:0;pointer-events:none}
 .icon-choice svg{width:20px;height:20px}
 .icon-choice:hover{border-color:var(--olive-400)}
+/* 1. ضبط شبكة المنتجات لتكون عمودين في الهواتف والشاشات المتوسطة مثل ريجانة */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr) !important; /* عمودان فقط في الصف */
+  gap: 14px; /* مسافة متناسقة بين البطاقات */
+  margin-top: 16px;
+}
+
+/* في الشاشات العريضة للكمبيوتر (فوق 1024px) يمكنك جعلها 4 إذا أردت أو إبقاؤها مريحة */
+@media (min-width: 1024px) {
+  .product-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 20px;
+  }
+}
+
+/* 2. ضبط أبعاد ومساحة صورة المنتج لتظهر بارتفاع ووضوح ممتاز */
+.product-card .product-media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1; /* نسبة مربعة مثالية تكبّر حجم الصورة */
+  overflow: hidden;
+  border-radius: 14px 14px 0 0;
+  background: #f8fafc;
+}
+
+.product-card .product-media img,
+.product-card .product-media-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* تغطية كاملة دون تشويه */
+  display: block;
+}
+
+/* 3. تضخيم خط اسم المنتج والسعر لتتناسق مع الحجم الجديد */
+.product-card .product-body {
+  padding: 12px 14px;
+}
+
+.product-card .product-name {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 6px 0;
+}
+
+.product-card .price {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
