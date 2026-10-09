@@ -87,7 +87,7 @@ function renderHeader() {
           '<button type="button" class="btn-icon" id="openGlobalSearch" aria-label="بحث" title="بحث">' + iconSvg("search") + '</button>' +
           '<a href="cart.html" class="btn-icon cart-link" id="headerCartBtn" aria-label="السلة" title="السلة">' + 
             iconSvg("cart") + 
-            '<span class="cart-count" id="cartCount">0</span>' +
+            '<span class="cart-count" id="cartCount" style="display:none;"></span>' +
           '</a>' +
           '<button class="btn-icon nav-toggle" id="navToggle" aria-label="القائمة">' + iconSvg("menu") + '</button>' +
         '</div>' +
@@ -230,10 +230,8 @@ function initGlobalSearch() {
       resultsBox.innerHTML = '<div class="empty-search">جاري البحث...</div>';
 
       searchTimeout = setTimeout(async function() {
-          // البحث أولاً في الذاكرة الحالية لتوفير استهلاك الباندويث
           let pool = Store.getProducts();
 
-          // إذا كانت الذاكرة فارغة، نطلب دفعة تمهيدية بحد أقصى 25 منتجاً
           if (!pool || pool.length === 0) {
               const batch = await Store.loadProductsPage(25, null);
               pool = batch.products || [];
@@ -244,7 +242,7 @@ function initGlobalSearch() {
               (p.barcode && String(p.barcode).toLowerCase().includes(query)) ||
               (p.sku && String(p.sku).toLowerCase().includes(query)) ||
               (p.description && p.description.toLowerCase().includes(query))
-          ).slice(0, 8); // الاكتفاء بأول 8 عناصر متطابقة لأقصى سرعة واستجابة
+          ).slice(0, 8);
 
           if(matched.length === 0) {
               resultsBox.innerHTML = '<div class="empty-search">لا توجد منتجات مطابقة لـ "' + escapeHtml(query) + '"</div>';
@@ -324,15 +322,26 @@ function initMobileNav() {
   });
 }
 
+// دالة تحديث السلة المحسنة والدقيقة لمنع أي أرقام فانتوم
 window.updateCartBadge = function() {
   const el = document.getElementById("cartCount");
-  if (!el || typeof Store === "undefined") return;
-  const count = Store.cartCount ? Store.cartCount() : 0;
-  el.textContent = count;
+  if (!el) return;
+  
+  let count = 0;
+  if (typeof Store !== "undefined" && typeof Store.getCart === "function") {
+    const cart = Store.getCart() || [];
+    count = cart.reduce(function(sum, item) {
+      const q = Number(item && item.qty);
+      return sum + (q > 0 ? q : 0);
+    }, 0);
+  }
+
   if (count > 0) {
+    el.textContent = count;
     el.style.display = "inline-flex";
     el.classList.add("has-items");
   } else {
+    el.textContent = "";
     el.style.display = "none";
     el.classList.remove("has-items");
   }
@@ -383,13 +392,16 @@ function initBackToTop() {
   });
 }
 
-function fixRelativePaths(scope) { /* no-op */ }
-
 document.addEventListener("DOMContentLoaded", function () {
   renderHeader();
   renderFooter();
   window.updateCartBadge();
   initBackToTop();
+});
+
+// ضمان تحديث العداد الفوري عند العودة بالمتصفح
+window.addEventListener("pageshow", function() {
+  window.updateCartBadge();
 });
 
 document.addEventListener("cart:updated", function() {
