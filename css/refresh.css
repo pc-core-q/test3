@@ -196,8 +196,10 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   }
 }
 
-/* Product cards */
-.product-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:20px 14px}
+/* ==========================================================================
+   Product cards — تصميم البطاقة الملمومة وشبه المربعة
+   ========================================================================== */
+.product-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px 12px}
 .product-card{
   background:#fff!important;
   border:1px solid var(--line-strong)!important;
@@ -213,9 +215,11 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   box-shadow:0 8px 18px rgba(0,0,0,0.08)!important;
   border-color:var(--olive-400)!important;
 }
+
+/* نسبة ارتفاع الصورة أصبحت أقصر لتجعل الإجمالي شبه مربع */
 .product-media{
-  aspect-ratio:1/1!important;
-  width:100%;
+  aspect-ratio: 1.15 / 1 !important;
+  width:100% !important;
   border-radius:0!important;
   background:#eceff3;
   position:relative;
@@ -227,32 +231,139 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   object-fit:cover;
   transition:transform .3s ease;
 }
-.product-card:hover .product-media>img{transform:scale(1.05)}
-.badge{top:8px;right:8px;padding:4px 8px;border-radius:8px;font-size:.7rem;box-shadow:none}
-.badge-out-abs{top:8px;left:8px;right:auto}
-.product-body{padding:12px 10px;display:flex;flex-direction:column;flex:1}
-.product-cat{color:var(--ink-400);font-weight:500;margin-bottom:3px;font-size:.8rem}
-.product-name{font-family:var(--font-body);font-size:.92rem;font-weight:600;line-height:1.45;min-height:0;margin:0 0 6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.product-card:hover .product-media>img{transform:scale(1.04)}
+
+.badge{
+  top:6px !important;
+  right:6px !important;
+  padding:3px 7px !important;
+  border-radius:6px !important;
+  font-size:.68rem !important;
+  box-shadow:none !important;
+}
+.badge-out-abs{top:6px !important;left:6px !important;right:auto !important}
+
+/* قسم نصوص ملموم ومضغوط الارتفاع */
+.product-body{
+  padding: 8px 10px !important;
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  justify-content: space-between;
+}
+
+.product-cat{
+  color:var(--ink-400);
+  font-weight:600;
+  margin-bottom:2px !important;
+  font-size:.72rem !important;
+  line-height: 1.2;
+}
+
+.product-name{
+  font-family:var(--font-body);
+  font-size:.86rem !important;
+  font-weight:700 !important;
+  line-height:1.25 !important;
+  min-height:0 !important;
+  margin:0 0 4px !important;
+  display:-webkit-box !important;
+  -webkit-line-clamp:1 !important; /* حصر العنوان في سطر واحد لتقصير البطاقة */
+  -webkit-box-orient:vertical !important;
+  overflow:hidden !important;
+}
 .product-name a:hover{color:var(--olive-600)}
-.product-body-colors{margin:0 0 8px}
-.product-foot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px}
-.price{font-size:1rem;font-weight:700;color:var(--olive-900)}
-.product-actions .btn{width:38px;height:38px;min-height:38px;border-radius:var(--r-ctl);background:var(--olive-50);color:var(--olive-900);border:1px solid var(--line-strong);box-shadow:none}
+
+/* دوائر الألوان مدمجة دون مسافات مهدرة */
+.product-body-colors{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  min-height:0 !important;
+  margin:0 0 4px !important;
+}
+.card-color-dot{
+  width:12px !important;
+  height:12px !important;
+}
+
+.product-foot{
+  margin-top:auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  padding-top: 2px;
+}
+.price{
+  font-size:.92rem !important;
+  font-weight:800;
+  color:var(--olive-900);
+  line-height: 1;
+}
+
+.product-actions .btn{
+  width:32px !important;
+  height:32px !important;
+  min-height:32px !important;
+  border-radius:var(--r-ctl);
+  background:var(--olive-50);
+  color:var(--olive-900);
+  border:1px solid var(--line-strong);
+  box-shadow:none;
+  padding:0 !important;
+}
+.product-actions .btn svg{
+  width: 15px !important;
+  height: 15px !important;
+}
 .product-actions .btn:hover:not(:disabled){background:var(--olive-900);color:#fff}
 
 @media(max-width:1024px){.product-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
 @media(max-width:650px){
-  .product-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 10px}
-  .product-name{font-size:.86rem}
-  .product-body{padding:10px 8px}
-  .product-actions .btn{width:36px;height:36px;min-height:36px}
+  .product-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:10px 8px !important;
+  }
+  .product-media{
+    aspect-ratio: 1.1 / 1 !important;
+  }
+  .product-name{
+    font-size:.82rem !important;
+    -webkit-line-clamp:1 !important;
+  }
+  .product-body{
+    padding:6px 8px !important;
+  }
+  .product-actions .btn{
+    width:30px !important;
+    height:30px !important;
+    min-height:30px !important;
+  }
+  .price{
+    font-size:.85rem !important;
+  }
 }
 
 /* Homepage rails scroll sideways on phones */
 @media(max-width:767px){
-  #featuredGrid,#offerGrid,#newGrid{display:flex;overflow-x:auto;gap:12px;margin-inline:-16px;padding:4px 16px 10px;scroll-padding-inline:16px;scroll-snap-type:x mandatory;scrollbar-width:none}
+  #featuredGrid,#offerGrid,#newGrid{
+    display:flex;
+    overflow-x:auto;
+    gap:10px;
+    margin-inline:-16px;
+    padding:4px 16px 10px;
+    scroll-padding-inline:16px;
+    scroll-snap-type:x mandatory;
+    scrollbar-width:none;
+  }
   #featuredGrid::-webkit-scrollbar,#offerGrid::-webkit-scrollbar,#newGrid::-webkit-scrollbar{display:none}
-  #featuredGrid .product-card,#offerGrid .product-card,#newGrid .product-card{flex:0 0 52%;scroll-snap-align:start}
+  #featuredGrid .product-card,#offerGrid .product-card,#newGrid .product-card{
+    flex:0 0 44% !important; /* تقليل العرض من 52% لجعل شكلها مربعاً ومتناسقاً */
+    max-width: 175px !important;
+    scroll-snap-align:start;
+  }
 }
 
 /* Page headers */
@@ -269,7 +380,7 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
 /* Product detail */
 .detail-media{position:sticky;top:92px;aspect-ratio:auto;background:none;border:0;border-radius:0;overflow:visible}
 .detail-gallery{display:block;width:100%;border-radius:var(--r-card);overflow:hidden;background:#eceff3}
-.detail-gallery-img{display:block;width:100%;aspect-ratio:4/5;object-fit:cover;background:#eceff3;transition:opacity .2s ease}
+.detail-gallery-img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:#eceff3;transition:opacity .2s ease}
 .gallery-hint{display:none!important}
 
 /* Product Gallery Thumbnails */
@@ -355,7 +466,7 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   color: var(--ink-800) !important;
 }
 
-/* شارة عدد السلة: مخفية تماماً عندما تكون صفراً أو فارغة */
+/* شارة عدد السلة */
 .cart-count, #cartCount {
   display: none !important;
   position: absolute !important;
@@ -376,12 +487,11 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   box-shadow: none !important;
 }
 
-/* تظهر الشارة فقط عندما تحتوي السلة على عناصر حقيقية أكبر من صفر */
 .cart-count.has-items, #cartCount.has-items {
   display: inline-flex !important;
 }
 
-/* صفحة السلة وتحسين زر الحذف */
+/* صفحة السلة */
 .cart-item {
   border-radius: var(--r-card);
   box-shadow: none;
@@ -397,7 +507,7 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   .summary-card{position:sticky;top:88px}
 }
 
-/* زر إزالة المنتج من السلة — بارز وواضح جداً */
+/* زر إزالة المنتج من السلة */
 .cart-item .remove-btn {
   display: inline-flex !important;
   align-items: center !important;
@@ -462,7 +572,7 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   animation-name: shimmer;
   animation-timing-function: linear;
   border-radius: var(--r-card);
-  height: 300px;
+  height: 240px !important; /* تقصير ارتفاع السكلتون ليطابق شكل البطاقة الجديد */
 }
 
 /* Back to Top Button */
@@ -754,11 +864,6 @@ body:has(#detailActions) #backToTopBtn {
   .hero-copy h1{font-size:2rem}
   .hero-trust{gap:7px}
   .hero-trust div{flex:1;min-width:130px}
-  .product-grid{grid-template-columns:repeat(2,1fr);gap:10px}
-  .product-body{padding:11px}
-  .product-name{font-size:.88rem;min-height:2.3em;margin-bottom:5px;}
-  .price{font-size:.9rem}
-  .product-actions .btn{width:36px;height:36px;min-height:36px}
   .feature-grid{grid-template-columns:repeat(2,1fr);gap:10px}
   .feature-card{padding:15px}
   .contact-band{padding:22px;flex-direction:column;align-items:flex-start}
@@ -782,9 +887,6 @@ body:has(#detailActions) #backToTopBtn {
   .brand-name{font-size:1rem}
   .brand-name span{display:none}
   .header-inner{gap:8px}
-  .product-grid{gap:8px}
-  .product-body{padding:9px}
-  .product-name{font-size:.82rem}
   .feature-card h3{font-size:.9rem}
   .feature-card p{font-size:.72rem}
   .footer-grid{grid-template-columns:1fr}
@@ -797,38 +899,3 @@ body:has(#detailActions) #backToTopBtn {
 .icon-choice input{position:absolute;opacity:0;pointer-events:none}
 .icon-choice svg{width:20px;height:20px}
 .icon-choice:hover{border-color:var(--olive-400)}
-
-.detail-gallery-img {
-    aspect-ratio: 1 / 1 !important; 
-    object-fit: cover !important;
-}
-
-.product-body {
-    padding: 8px 10px !important; 
-}
-
-.product-name {
-    min-height: auto !important; 
-    margin: 0 0 4px 0 !important; 
-    font-size: 0.9rem !important; 
-}
-
-.product-cat {
-    margin-bottom: 2px !important; 
-}
-
-.product-body-colors {
-    min-height: auto !important; 
-    margin: 0 0 6px 0 !important;
-}
-
-@media(max-width: 650px) {
-    .product-actions .btn {
-        width: 34px !important;
-        height: 34px !important;
-        min-height: 34px !important;
-    }
-    .price {
-        font-size: 0.9rem !important;
-    }
-}
