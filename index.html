@@ -20,8 +20,8 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
   </noscript>
 
-  <link rel="stylesheet" href="css/style.css?v=49">
-  <link rel="stylesheet" href="css/refresh.css?v=49">
+  <link rel="stylesheet" href="css/style.css?v=50">
+  <link rel="stylesheet" href="css/refresh.css?v=50">
 </head>
 <body>
 
@@ -178,13 +178,13 @@
 <div id="site-footer"></div>
 
 <!-- تحميل السكربتات بالتوازي دون حجب الواجهة باستخدام defer -->
-<script src="js/config.js?v=49" defer></script>
-<script src="js/icons.js?v=49" defer></script>
+<script src="js/config.js?v=50" defer></script>
+<script src="js/icons.js?v=50" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" defer></script>
-<script src="js/store.js?v=49" defer></script>
-<script src="js/whatsapp.js?v=49" defer></script>
-<script src="js/app.js?v=49" defer></script>
+<script src="js/store.js?v=50" defer></script>
+<script src="js/whatsapp.js?v=50" defer></script>
+<script src="js/app.js?v=50" defer></script>
 <script>
   let slideInterval = null;
 
@@ -201,6 +201,15 @@
     const cat = Store.getCategories().find(function (c) { return c.id === product.categoryId; });
     const key = cat ? cat.icon : "box";
     return '<div class="placeholder-icon">' + iconSvg(key) + "</div>";
+  }
+
+  function productHasOptions(product) {
+    if (!product) return false;
+    const hasColors = Array.isArray(product.colors) && product.colors.length > 0;
+    const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
+    const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
+    const hasMatrix = typeof Store !== "undefined" && typeof Store.hasVariantMatrix === "function" && Store.hasVariantMatrix(product);
+    return hasColors || hasSizes || hasVariants || hasMatrix;
   }
   
   function renderHomeProductCard(product) {
@@ -235,6 +244,14 @@
       }
     }
 
+    const hasOptions = productHasOptions(product);
+
+    const actionIcon = hasOptions
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:block;margin:auto;"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>'
+      : iconSvg("cart");
+
+    const actionTitle = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات والمواصفات" : "أضف للسلة");
+
     return (
       '<article class="product-card">' +
         '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="product-media">' +
@@ -249,9 +266,9 @@
             '<span class="price">' + formatPrice(product.price) + "</span>" +
             '<div class="product-actions">' +
               '<button class="btn btn-primary" ' + (outOfStock ? "disabled" : "") +
-                ' title="' + (outOfStock ? "غير متوفر" : "أضف للسلة") + '"' +
+                ' title="' + actionTitle + '"' +
                 ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
-                iconSvg("cart") +
+                actionIcon +
               "</button>" +
             "</div>" +
           "</div>" +
@@ -274,8 +291,8 @@
       product = await Store.loadProductById(productId);
     }
     if (!product || !Store.isProductAvailable(product)) return;
-    const hasOptions = (product.variants && product.variants.length > 0) || Store.hasVariantMatrix(product);
-    if (hasOptions) {
+
+    if (productHasOptions(product)) {
         window.location.href = 'product.html?id=' + encodeURIComponent(productId);
         return;
     }
@@ -318,7 +335,6 @@
       homeSocial.innerHTML = socialHtml || '<span style="opacity:.6;">لم يتم إعداد روابط التواصل بعد.</span>';
     }
 
-    // 1. رسم الأقسام فوراً دون استهلاك باقة أو اتصال إضافي
     const catEl = document.getElementById("homeCategories");
     if (catEl) {
       const categories = Store.getCategories();
@@ -329,7 +345,6 @@
       }).join("");
     }
 
-    // 2. استخدام الكاش المحلي لظهور فوري بـ 4 منتجات فقط لكل قسم
     const cachedFeatured = JSON.parse(localStorage.getItem("ws_products_filter_featured") || "[]");
     const cachedOffers = JSON.parse(localStorage.getItem("ws_products_filter_offers") || "[]");
     const cachedNew = JSON.parse(localStorage.getItem("ws_products_filter_new") || "[]");
@@ -343,7 +358,6 @@
       window.updateCartBadge();
     }
 
-    // 3. جلب خفيف ومرحلي على شبكة 3G (4 منتجات فقط لكل قسم بالتتابع)
     try {
       const featuredRes = await Store.loadProductsPageByField("featured", true, 4, null);
       if (featuredRes && featuredRes.products) {
