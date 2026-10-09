@@ -130,7 +130,7 @@
   <aside class="admin-sidebar" id="adminSidebar">
     <div class="brand" style="display:flex; align-items:center; justify-content:space-between; width:100%;">
       <div style="display:flex; align-items:center; gap:10px;">
-        <img id="adminHeaderLogo" src="assets/logo/logo.png" alt="شعار المتجر" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">
+        <img src="assets/logo/logo.png" alt="شعار المتجر" style="width:40px;height:40px;border-radius:50%;">
         <span class="brand-name">متجرك الإلكتروني<span style="color:rgba(255,255,255,.55);">لوحة التحكم</span></span>
       </div>
       <!-- زر إغلاق القائمة الجانبية في الموبايل -->
@@ -269,22 +269,6 @@
       <div class="admin-panel" style="max-width:640px;">
         <div class="panel-head"><h3 style="margin:0;">إعدادات المتجر</h3></div>
         <form id="settingsForm">
-          
-          <!-- حقل رفع ومعاينة شعار المتجر الديناميكي -->
-          <div class="field">
-            <label style="display:flex; justify-content:space-between; align-items:center;">
-              شعار المتجر (Logo)
-              <button type="button" id="removeSettingLogoBtn" class="btn-icon btn-sm" style="color:#d32f2f;" title="استعادة الشعار الافتراضي">__ICON_TRASH__</button>
-            </label>
-            <div class="image-upload" style="display:flex; align-items:center; gap:16px;">
-              <div class="preview" id="settingLogoPreview" style="width:64px; height:64px; border-radius:50%; overflow:hidden; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; background:#fff; flex-shrink:0;">
-                <img id="settingLogoImg" src="assets/logo/logo.png" style="width:100%; height:100%; object-fit:cover;">
-              </div>
-              <input type="file" id="settingLogoInput" accept="image/*" style="flex:1;">
-            </div>
-            <div class="field-hint">يظهر الشعار في هيدر وفوتر المتجر وأيقونة تطبيق الهاتف (PWA).</div>
-          </div>
-
           <div class="field"><label>اسم المتجر</label><input name="storeName" required></div>
           <div class="field"><label>الشعار النصي (Tagline)</label><input name="storeTagline"></div>
           <div class="field"><label>وصف المتجر</label><textarea name="storeDescription"></textarea></div>
@@ -298,7 +282,7 @@
           <div class="field"><label>رمز العملة</label><input name="currencySymbol"></div>
 
           <hr style="border:none;border-top:1px solid var(--line);margin:22px 0;">
-          <div class="field-hint">تسجيل دخول الأدمن تتم إدارته عبر Firebase Authentication. تغيير كلمة المرور يتم من حساب Firebase.</div>
+          <div class="field-hint">تسجيل دخول الأدمن تتم إدارته الآن عبر Firebase Authentication. تغيير كلمة المرور يتم من حساب Firebase، وليس من بيانات المتجر.</div>
 
           <button type="submit" class="btn btn-primary btn-block">حفظ الإعدادات</button>
         </form>
@@ -327,14 +311,15 @@
         </div>
       </div>
       
-      <!-- صور إضافية للمنتج -->
+      <!-- ============ إضافة حقل الصور المتعددة ============ -->
       <div class="field">
         <label>صور إضافية للمنتج (اختياري)</label>
         <input type="file" id="productExtraImagesInput" accept="image/*" multiple>
         <div id="extraImagesPreview" style="display: flex; gap: 5px; margin-top: 10px; flex-wrap: wrap;"></div>
       </div>
+      <!-- =================================================== -->
 
-      <!-- الباركود / كود المادة SKU -->
+      <!-- حقل الباركود / كود المادة SKU لربطه بنظام المحاسبة والإكسل -->
       <div class="field">
         <label>الباركود / SKU (اختياري — للمزامنة مع نظام المحاسبة)</label>
         <input type="text" id="productBarcode" placeholder="امسح بالباركود أو اكتب الكود هنا...">
@@ -440,7 +425,7 @@
   </div>
 </div>
 
-<!-- مكتبة SheetJS لقراءة وتفكيك ملفات Excel و CSV -->
+<!-- مكتبة SheetJS لقراءة وتفكيك ملفات Excel و CSV مباشرة في المتصفح -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <script src="js/config.js?v=48"></script>
@@ -469,6 +454,7 @@
 
   document.getElementById("adminSidebarToggle").innerHTML = iconSvg("menu");
   
+  // زر إغلاق القائمة الجانبية للأدمن في الموبايل
   const closeSidebarBtn = document.querySelector(".admin-close-sidebar");
   if (closeSidebarBtn) {
     closeSidebarBtn.innerHTML = iconSvg("close");
@@ -490,9 +476,6 @@
   }
   if(document.getElementById("removeAdImageBtn")) {
       document.getElementById("removeAdImageBtn").innerHTML = iconSvg("trash");
-  }
-  if(document.getElementById("removeSettingLogoBtn")) {
-      document.getElementById("removeSettingLogoBtn").innerHTML = iconSvg("trash");
   }
 
   document.addEventListener("DOMContentLoaded", function () {

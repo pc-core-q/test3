@@ -1,7 +1,7 @@
 /* ==========================================================================
    app.js
    منطق مشترك بين كل صفحات المتجر: رسم الهيدر والفوتر، القائمة، الإشعارات.
-   تم التحديث: شعار ديناميكي من إعدادات المتجر، وبحث خفيف بنظام الدفعات.
+   تم التحديث: بحث عام خفيف بنظام الدفعات يدعم الباركود ويوفر باندويث Firebase.
    ========================================================================== */
 
 /* ---------- أدوات التهريب المشتركة (متاحة لكل الصفحات) ---------- */
@@ -64,13 +64,11 @@ function renderHeader() {
   const rawSettings = Store.getSettings() || {};
   const settings = {
     storeName: rawSettings.storeName || "متجرك الإلكتروني",
-    storeTagline: rawSettings.storeTagline || "تسوّق بسهولة وثقة",
-    logo: rawSettings.logo || "assets/logo/logo.png"
+    storeTagline: rawSettings.storeTagline || "تسوّق بسهولة وثقة"
   };
 
   const safeName = escapeHtml(settings.storeName);
   const safeTagline = escapeHtml(settings.storeTagline);
-  const safeLogo = escapeHtml(window.getIkUrl(settings.logo, 160, 85));
 
   const navHtml = NAV_LINKS.map(function (link) {
     const isActive = link.key === active ? " active" : "";
@@ -81,7 +79,7 @@ function renderHeader() {
     '<header class="site-header">' +
       '<div class="container header-inner">' +
         '<a href="index.html" class="brand" aria-label="' + safeName + '">' +
-          '<img src="' + safeLogo + '" alt="' + safeName + '" style="object-fit:cover;">' +
+          '<img src="assets/logo/logo.png" alt="' + safeName + '">' +
           '<span class="brand-name">' + safeName + '<span>' + safeTagline + '</span></span>' +
         '</a>' +
         '<nav class="main-nav" id="mainNav" aria-label="التنقل الرئيسي">' + navHtml + '</nav>' +
@@ -232,8 +230,10 @@ function initGlobalSearch() {
       resultsBox.innerHTML = '<div class="empty-search">جاري البحث...</div>';
 
       searchTimeout = setTimeout(async function() {
+          // البحث أولاً في الذاكرة الحالية لتوفير استهلاك الباندويث
           let pool = Store.getProducts();
 
+          // إذا كانت الذاكرة فارغة، نطلب دفعة تمهيدية بحد أقصى 25 منتجاً
           if (!pool || pool.length === 0) {
               const batch = await Store.loadProductsPage(25, null);
               pool = batch.products || [];
@@ -244,7 +244,7 @@ function initGlobalSearch() {
               (p.barcode && String(p.barcode).toLowerCase().includes(query)) ||
               (p.sku && String(p.sku).toLowerCase().includes(query)) ||
               (p.description && p.description.toLowerCase().includes(query))
-          ).slice(0, 8);
+          ).slice(0, 8); // الاكتفاء بأول 8 عناصر متطابقة لأقصى سرعة واستجابة
 
           if(matched.length === 0) {
               resultsBox.innerHTML = '<div class="empty-search">لا توجد منتجات مطابقة لـ "' + escapeHtml(query) + '"</div>';
@@ -278,8 +278,7 @@ function renderFooter() {
     whatsapp: rawSettings.whatsapp || "",
     instagram: escapeHtml(rawSettings.instagram || ""),
     tiktok: escapeHtml(rawSettings.tiktok || ""),
-    address: escapeHtml(rawSettings.address || ""),
-    logo: escapeHtml(window.getIkUrl(rawSettings.logo || "assets/logo/logo.png", 160, 85))
+    address: escapeHtml(rawSettings.address || "")
   };
   const categories = (Store.getCategories() || []).slice(0, 5);
   const catLinks = categories.map(function(c){ return '<li><a href="products.html?cat=' + encodeURIComponent(c.id) + '">' + escapeHtml(c.name) + '</a></li>'; }).join("");
@@ -288,7 +287,7 @@ function renderFooter() {
       '<div class="container">' +
         '<div class="footer-grid">' +
           '<div>' +
-            '<div class="footer-brand"><img src="' + settings.logo + '" alt="' + settings.storeName + '" style="object-fit:cover;"><strong>' + settings.storeName + '</strong></div>' +
+            '<div class="footer-brand"><img src="assets/logo/logo.png" alt="' + settings.storeName + '"><strong>' + settings.storeName + '</strong></div>' +
             '<p>' + settings.storeDescription + '</p>' +
           '</div>' +
           '<div><h4>روابط سريعة</h4><ul>' +

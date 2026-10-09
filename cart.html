@@ -5,23 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>السلة | متجرك الإلكتروني</title>
   <link rel="icon" href="assets/logo/logo.png">
-
-  <!-- إعدادات تطبيق الهاتف وتثبيت PWA -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#16233f">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="المتجر">
-  <link rel="apple-touch-icon" href="assets/logo/logo.png">
-
-  <link rel="stylesheet" href="css/style.css?v=49">
-  <link rel="stylesheet" href="css/refresh.css?v=49">
+  <link rel="stylesheet" href="css/style.css?v=44">
+  <link rel="stylesheet" href="css/refresh.css?v=44">
   <style>
     /* تنسيق شريط التمرير للسلة (Mini Cart Slider) */
     .cart-items-wrapper {
       max-height: 55vh;
       overflow-y: auto;
-      padding-left: 8px;
+      padding-left: 8px; /* مسافة لشريط التمرير */
       scrollbar-width: thin;
       scrollbar-color: var(--olive-400) transparent;
     }
@@ -37,7 +28,7 @@
     }
     @media (max-width: 900px) {
       .cart-items-wrapper {
-        max-height: 45vh;
+        max-height: 45vh; /* تقليل الارتفاع في الجوال لضمان ظهور زر الطلب */
         padding-left: 4px;
       }
     }
@@ -63,7 +54,7 @@
           <div id="cartWarning" class="setup-note" style="display:none;">
             بعض المنتجات في سلتك لم تعد متوفرة بالكامل، الرجاء مراجعة الكميات قبل إرسال الطلب.
           </div>
-          <!-- حاوية التمرير -->
+          <!-- إضافة الحاوية المسؤولة عن التمرير هنا -->
           <div class="cart-items-wrapper">
               <div id="cartItems"></div>
           </div>
@@ -84,15 +75,14 @@
 
 <div id="site-footer"></div>
 
-<script src="js/config.js?v=49"></script>
-<script src="js/icons.js?v=49"></script>
+<script src="js/config.js?v=44"></script>
+<script src="js/icons.js?v=44"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="js/store.js?v=49"></script>
-<script src="js/whatsapp.js?v=49"></script>
-<script src="js/app.js?v=49"></script>
-<script src="js/cart.js?v=49"></script>
-<script src="js/pwa.js?v=49" defer></script>
+<script src="js/store.js?v=44"></script>
+<script src="js/whatsapp.js?v=44"></script>
+<script src="js/app.js?v=44"></script>
+<script src="js/cart.js?v=44"></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     var btn = document.getElementById("checkoutBtn");

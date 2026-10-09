@@ -7,14 +7,6 @@
   <meta name="description" content="تصفّح منتجاتنا واطلب مباشرة عبر واتساب بسهولة وسرعة.">
   <link rel="icon" href="assets/logo/logo.png">
 
-  <!-- إعدادات تطبيق الهاتف وتثبيت PWA -->
-  <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#16233f">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="المتجر">
-  <link rel="apple-touch-icon" href="assets/logo/logo.png">
-
   <!-- مصافحة مسبقة سريعة للخوادم الخارجية لمنع التأخير -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -57,8 +49,8 @@
         </div>
       </div>
       <div class="hero-art" id="heroPromoContainer">
-        <!-- صورة افتراضية ديناميكية تظهر فوراً قبل تحميل السلايدر -->
-        <div class="hero-art-default"><img id="heroDefaultLogo" src="assets/logo/logo.png" alt="شعار المتجر"></div>
+        <!-- صورة افتراضية تظهر فوراً قبل تحميل السلايدر -->
+        <div class="hero-art-default"><img src="assets/logo/logo.png" alt="شعار المتجر"></div>
       </div>
     </div>
   </section>
@@ -193,7 +185,6 @@
 <script src="js/store.js?v=49" defer></script>
 <script src="js/whatsapp.js?v=49" defer></script>
 <script src="js/app.js?v=49" defer></script>
-<script src="js/pwa.js?v=49" defer></script>
 <script>
   let slideInterval = null;
 
@@ -327,13 +318,7 @@
       homeSocial.innerHTML = socialHtml || '<span style="opacity:.6;">لم يتم إعداد روابط التواصل بعد.</span>';
     }
 
-    // مزامنة شعار الـ Hero الافتراضي
-    const heroLogo = document.getElementById("heroDefaultLogo");
-    if (heroLogo && s.logo) {
-      heroLogo.src = (typeof window.getIkUrl === 'function') ? window.getIkUrl(s.logo, 500, 85) : s.logo;
-    }
-
-    // 1. رسم الأقسام فوراً دون استهلاك باقة
+    // 1. رسم الأقسام فوراً دون استهلاك باقة أو اتصال إضافي
     const catEl = document.getElementById("homeCategories");
     if (catEl) {
       const categories = Store.getCategories();
@@ -358,7 +343,7 @@
       window.updateCartBadge();
     }
 
-    // 3. جلب خفيف ومرحلي (4 منتجات فقط لكل قسم بالتتابع)
+    // 3. جلب خفيف ومرحلي على شبكة 3G (4 منتجات فقط لكل قسم بالتتابع)
     try {
       const featuredRes = await Store.loadProductsPageByField("featured", true, 4, null);
       if (featuredRes && featuredRes.products) {
@@ -433,9 +418,7 @@
             startAutoSlide();
         }, {passive: true});
     } else { 
-        const s = Store.getSettings() || {};
-        const logoUrl = s.logo ? ((typeof window.getIkUrl === 'function') ? window.getIkUrl(s.logo, 500, 85) : s.logo) : 'assets/logo/logo.png';
-        heroArt.innerHTML = `<div class="hero-art-default"><img src="${escapeHtml(logoUrl)}" alt="شعار المتجر"></div>`; 
+        heroArt.innerHTML = '<div class="hero-art-default"><img src="assets/logo/logo.png" alt="شعار المتجر"></div>'; 
     }
   }
 

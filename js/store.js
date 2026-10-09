@@ -1,7 +1,7 @@
 /* ==========================================================================
    store.js — طبقة البيانات المركزية للقالب (localStorage + Firebase اختياري)
    كل القراءة والكتابة تمر حصرًا عبر كائن Store في هذا الملف.
-   تم التحديث: إصلاح استقرار السلة، ومنع تصفير العداد عند التنقل بين الصفحات.
+   تم التحديث: دعم حقول الباركود (barcode / sku) وتزامن كاش المنتجات الفوري.
    ========================================================================== */
 
 /* ---------------------------------------------------------------------- */
@@ -94,6 +94,7 @@ async function pullFromFirebase() {
   try {
     const lastSync = localStorage.getItem("last_meta_pull_time");
     const now = Date.now();
+    // تفعيل الكاش لـ 15 دقيقة لتفادي استنزاف الاتصالات
     const cooldownMs = 15 * 60 * 1000;
 
     if (lastSync && (now - parseInt(lastSync, 10)) < cooldownMs) {
@@ -265,7 +266,7 @@ async function fetchAllProductsFromFirebase() {
 pullFromFirebase();
 
 /* ---------------------------------------------------------------------- */
-/* التهيئة وإدارة إصدار البيانات (محصنة ضد مسح السلة)                      */
+/* التهيئة وإدارة إصدار البيانات                                          */
 /* ---------------------------------------------------------------------- */
 
 function seedIfNeeded() {
@@ -294,32 +295,27 @@ function seedIfNeeded() {
 
   if (localStorage.getItem(DB_KEYS.seeded)) return;
 
-  if (!localStorage.getItem(DB_KEYS.categories)) localStorage.setItem(DB_KEYS.categories, JSON.stringify([]));
-  if (!localStorage.getItem(DB_KEYS.products)) localStorage.setItem(DB_KEYS.products, JSON.stringify([]));
+  localStorage.setItem(DB_KEYS.categories, JSON.stringify([]));
+  localStorage.setItem(DB_KEYS.products, JSON.stringify([]));
 
   const cfg = (typeof STORE_CONFIG !== "undefined") ? STORE_CONFIG : {};
-  if (!localStorage.getItem(DB_KEYS.settings)) {
-    localStorage.setItem(DB_KEYS.settings, JSON.stringify({
-      storeName: cfg.storeName || "",
-      storeTagline: cfg.storeTagline || "",
-      storeDescription: cfg.storeDescription || "",
-      whatsapp: cfg.whatsappNumber || "",
-      instagram: cfg.instagram || "",
-      tiktok: cfg.tiktok || "",
-      phone: cfg.phone || "",
-      address: cfg.address || "",
-      workingHours: cfg.workingHours || "",
-      deliveryInfo: cfg.deliveryInfo || "",
-      currencySymbol: cfg.currencySymbol || "د.ع",
-    }));
-  }
+  localStorage.setItem(DB_KEYS.settings, JSON.stringify({
+    storeName: cfg.storeName || "",
+    storeTagline: cfg.storeTagline || "",
+    storeDescription: cfg.storeDescription || "",
+    whatsapp: cfg.whatsappNumber || "",
+    instagram: cfg.instagram || "",
+    tiktok: cfg.tiktok || "",
+    phone: cfg.phone || "",
+    address: cfg.address || "",
+    workingHours: cfg.workingHours || "",
+    deliveryInfo: cfg.deliveryInfo || "",
+    currencySymbol: cfg.currencySymbol || "د.ع",
+  }));
 
-  // لا نقوم بمسح السلة إن وُجدت سابقاً للزبون
-  if (!localStorage.getItem(DB_KEYS.cart)) {
-    localStorage.setItem(DB_KEYS.cart, JSON.stringify([]));
-  }
-  if (!localStorage.getItem(DB_KEYS.orders)) localStorage.setItem(DB_KEYS.orders, JSON.stringify([]));
-  if (!localStorage.getItem(DB_KEYS.ads)) localStorage.setItem(DB_KEYS.ads, JSON.stringify([]));
+  localStorage.setItem(DB_KEYS.cart, JSON.stringify([]));
+  localStorage.setItem(DB_KEYS.orders, JSON.stringify([]));
+  localStorage.setItem(DB_KEYS.ads, JSON.stringify([]));
   localStorage.setItem(DB_KEYS.seeded, "1");
 }
 seedIfNeeded();
@@ -381,7 +377,7 @@ const Store = {
     const now = Date.now();
     const cached = JSON.parse(localStorage.getItem(cacheKey) || "[]");
     const cachedAt = Number(localStorage.getItem(cacheTimeKey) || 0);
-    const cooldownMs = 15 * 60 * 1000;
+    const cooldownMs = 15 * 60 * 1000; // كاش 15 دقيقة
 
     if (!forceRefresh && cached && cached.length > 0) {
       if (now - cachedAt < cooldownMs || !firebaseEnabled) {
@@ -462,7 +458,7 @@ const Store = {
     const now = Date.now();
     const cached = JSON.parse(localStorage.getItem(cacheKey) || "[]");
     const cachedAt = Number(localStorage.getItem(cacheTimeKey) || 0);
-    const cooldownMs = 15 * 60 * 1000;
+    const cooldownMs = 15 * 60 * 1000; // كاش 15 دقيقة
 
     if (!forceRefresh && cached && cached.length > 0) {
       if (now - cachedAt < cooldownMs || !firebaseEnabled) {
@@ -498,7 +494,7 @@ const Store = {
     if (!firebaseEnabled) return this.getProducts();
     const cachedAt = Number(localStorage.getItem("ws_products_all_time") || 0);
     const cached = this.getProducts();
-    const cooldownMs = 15 * 60 * 1000;
+    const cooldownMs = 15 * 60 * 1000; // كاش 15 دقيقة
 
     if (!forceRefresh && cached.length && (Date.now() - cachedAt < cooldownMs)) {
       return cached;
@@ -580,39 +576,21 @@ const Store = {
   },
   deleteAd(id) { this.saveAds(this.getAds().filter(a => a.id !== id)); },
 
-  /* ---------------------------------------------------------------------- */
-  /* إدارة السلة المحصنة بالكامل                                             */
-  /* ---------------------------------------------------------------------- */
-  getCart() { 
-    try {
-      const parsed = JSON.parse(localStorage.getItem(DB_KEYS.cart) || "[]");
-      if (Array.isArray(parsed)) {
-        return parsed.filter(item => item && typeof item === "object" && item.itemKey && Number(item.qty) > 0);
-      }
-      return [];
-    } catch (e) {
-      return [];
-    }
-  },
-
+  getCart() { return JSON.parse(localStorage.getItem(DB_KEYS.cart) || "[]"); },
   saveCart(cart) {
-    const cleanCart = Array.isArray(cart) ? cart.filter(item => item && item.itemKey && Number(item.qty) > 0) : [];
-    localStorage.setItem(DB_KEYS.cart, JSON.stringify(cleanCart));
+    localStorage.setItem(DB_KEYS.cart, JSON.stringify(cart));
     document.dispatchEvent(new CustomEvent("cart:updated"));
   },
-
   addToCart(itemKey, qty, meta) {
-    if (!itemKey) return;
-    qty = Math.max(1, Number(qty) || 1);
     meta = meta || {};
     const cart = this.getCart();
     const line = cart.find(l => l.itemKey === itemKey);
     if (line) {
-      line.qty = (Number(line.qty) || 0) + qty;
+      line.qty += qty;
     } else {
-      const productId = String(itemKey).split('|')[0];
+      const productId = itemKey.split('|')[0];
       cart.push({
-        itemKey: String(itemKey),
+        itemKey: itemKey,
         productId: productId,
         qty: qty,
         color: meta.color || null,
@@ -622,32 +600,15 @@ const Store = {
     }
     this.saveCart(cart);
   },
-
   setQty(itemKey, qty) {
-    qty = Number(qty) || 0;
     let cart = this.getCart();
-    if (qty <= 0) {
-      cart = cart.filter(l => l.itemKey !== itemKey);
-    } else {
-      cart.forEach(l => { 
-        if (l.itemKey === itemKey) l.qty = qty; 
-      });
-    }
+    if (qty <= 0) cart = cart.filter(l => l.itemKey !== itemKey);
+    else cart.forEach(l => { if (l.itemKey === itemKey) l.qty = qty; });
     this.saveCart(cart);
   },
-
-  removeFromCart(itemKey) { 
-    this.saveCart(this.getCart().filter(l => l.itemKey !== itemKey)); 
-  },
-
-  clearCart() { 
-    this.saveCart([]); 
-  },
-
-  cartCount() { 
-    const cart = this.getCart();
-    return cart.reduce((sum, l) => sum + (Number(l.qty) || 0), 0); 
-  },
+  removeFromCart(itemKey) { this.saveCart(this.getCart().filter(l => l.itemKey !== itemKey)); },
+  clearCart() { this.saveCart([]); },
+  cartCount() { return this.getCart().reduce((sum, l) => sum + l.qty, 0); },
 
   getOrders() { return JSON.parse(localStorage.getItem(DB_KEYS.orders) || "[]"); },
   
