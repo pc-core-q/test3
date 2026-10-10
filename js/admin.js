@@ -1,7 +1,8 @@
 /* ==========================================================================
    admin.js
    منطق لوحة تحكم الأدمن بالكامل (admin.html). 
-   تم التحديث: دعم الباركود (SKU)، مزامنة الأسعار والمخزون من ملفات Excel و CSV عبر SheetJS.
+   تم التحديث: دعم الباركود (SKU)، مزامنة الأسعار والمخزون من ملفات Excel و CSV عبر SheetJS،
+   وتقييد رفع الصور بحد أقصى 4MB لمنع استهلاك الباقة وبطء المعالجة.
    ========================================================================== */
 
 let editingProductId = null;
@@ -10,9 +11,9 @@ let editingAdId = null;
 let pendingProductImage = null; 
 let pendingCategoryImage = null; 
 let pendingAdImage = null; 
-let pendingColors = [];       // [{ name, hex, image }]
-let pendingSizes = [];        // ["S", "M", ...]
-let pendingInventory = {};    // { "لون||مقاس": qty }
+let pendingColors = [];        // [{ name, hex, image }]
+let pendingSizes = [];         // ["S", "M", ...]
+let pendingInventory = {};     // { "لون||مقاس": qty }
 
 /* ---------------------------------------------------------------------- */
 /* ملاحظة: escapeHtml و jsStr معرّفتان في app.js (يُحمَّل قبل هذا الملف)   */
@@ -62,7 +63,7 @@ async function initAdminPage() {
 }
 
 /* ---------------------------------------------------------------------- */
-/* مزامنة واستيراد الأسعار والمخزون عبر ملفات Excel / CSV                */
+/* مزامنة واستيراد الأسعار والمخزون عبر ملفات Excel / CSV                 */
 /* ---------------------------------------------------------------------- */
 
 function wireExcelSync() {
@@ -139,7 +140,6 @@ function wireExcelSync() {
             if (!isNaN(newStock) && newStock >= 0 && newStock !== product.stock) {
               patch.stock = newStock;
               product.stock = newStock;
-              // إذا كان المنتج يمتلك تفريعات ألوان/مقاسات ولا يوجد تفصيل بالملف، يتم تحديث إجمالي المخزون
               modified = true;
             }
 
@@ -179,8 +179,28 @@ function wireExcelSync() {
 /* ---------------------------------------------------------------------- */
 
 async function uploadToImgBB(file, isBanner = false) {
+  if (!file) throw new Error("لم يتم اختيار ملف");
+
+  // 1. فحص الحد الأقصى لحجم الصورة (4 ميغابايت)
+  const MAX_SIZE_MB = 4;
+  const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+
+  if (file.size > MAX_SIZE_BYTES) {
+    const currentMB = (file.size / (1024 * 1024)).toFixed(1);
+    const errorMsg = `حجم الصورة كبير جداً (${currentMB}MB)! الحد الأقصى المسموح به هو ${MAX_SIZE_MB}MB.`;
+    showToast(errorMsg, "error");
+    throw new Error(errorMsg);
+  }
+
+  // 2. التحقق من صيغة الملف (أن يكون صورة فقط)
+  if (!file.type || !file.type.startsWith("image/")) {
+    const errorMsg = "الملف المختار ليس صورة صالحة!";
+    showToast(errorMsg, "error");
+    throw new Error(errorMsg);
+  }
+
   const apiKey = (typeof STORE_CONFIG !== "undefined" && STORE_CONFIG.imgbbApiKey || "").trim();
-  if (!apiKey) {
+  if (!apiKey || apiKey === "YOUR_IMGBB_KEY") {
     throw new Error("لم يتم إعداد مفتاح ImgBB بعد. أضِف imgbbApiKey في js/config.js لتفعيل رفع الصور.");
   }
 
@@ -200,7 +220,7 @@ async function uploadToImgBB(file, isBanner = false) {
   const rawUrl = data.data.url;
   const imageKitEndpoint = (typeof STORE_CONFIG !== "undefined" && STORE_CONFIG.imageKitEndpoint || "").trim().replace(/\/+$/, "");
 
-  if (!imageKitEndpoint) {
+  if (!imageKitEndpoint || imageKitEndpoint.includes("YOUR_ID")) {
     return rawUrl;
   }
 
@@ -246,7 +266,7 @@ window.toggleAdminSidebar = function() {
 };
 
 /* ---------------------------------------------------------------------- */
-/* لوحة الإحصائيات                                                      */
+/* لوحة الإحصائيات                                                       */
 /* ---------------------------------------------------------------------- */
 
 function renderStats() {
@@ -279,7 +299,7 @@ function renderProductsTable() {
     const q = query.trim().toLowerCase();
     products = products.filter(function (p) { 
       return (p.name && p.name.toLowerCase().includes(q)) || 
-             (p.barcode && String(p.barcode).toLowerCase().includes(q)) ||
+             (p.barcode && String(p.barcode).toLowerCase().includes(q)) || 
              (p.sku && String(p.sku).toLowerCase().includes(q)); 
     });
   }
@@ -527,7 +547,7 @@ function wireProductModal() {
         showToast("تم رفع الصورة بنجاح!", "success");
       } catch (error) {
         console.error("Upload Error:", error);
-        showToast("فشل رفع الصورة. يرجى التأكد من اتصال الإنترنت.", "error");
+        showToast(error.message || "فشل رفع الصورة.", "error");
       }
     });
   }
@@ -692,8 +712,9 @@ async function saveProductForm(e) {
       const uploadedUrls = await Promise.all(uploadPromises);
       extraImagesUrls = extraImagesUrls.concat(uploadedUrls.filter(url => url !== null));
     } catch (err) {
-      showToast("حدث خطأ أثناء رفع الصور الإضافية", "error");
+      showToast(err.message || "حدث خطأ أثناء رفع الصور الإضافية", "error");
       console.error(err);
+      return;
     }
   }
 
@@ -841,7 +862,7 @@ function wireCategoryModal() {
         showToast("تم الرفع بنجاح!", "success");
       } catch (error) {
         console.error("Upload Error:", error);
-        showToast("فشل رفع الصورة.", "error");
+        showToast(error.message || "فشل رفع الصورة.", "error");
       }
     });
   }
@@ -1002,7 +1023,7 @@ function wireAdModal() {
         showToast("تم رفع الإعلان بنجاح!", "success");
       } catch (error) {
         console.error("Upload Error:", error);
-        showToast("فشل رفع الصورة.", "error");
+        showToast(error.message || "فشل رفع الصورة.", "error");
       }
     });
   }
