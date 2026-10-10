@@ -902,3 +902,120 @@ body:has(#detailActions) #backToTopBtn {
 .icon-choice input{position:absolute;opacity:0;pointer-events:none}
 .icon-choice svg{width:20px;height:20px}
 .icon-choice:hover{border-color:var(--olive-400)}
+/* ===================================================
+   تنسيق الفوتر المدمج والمنظم للهواتف والشاشات الصغيرة
+   =================================================== */
+@media (max-width: 768px) {
+  /* 1. ضبط الحاوية الرئيسية والمسافات العامة */
+  .site-footer {
+    margin-top: 25px !important;
+  }
+
+  .site-footer .footer-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important; /* عمودان متجاوران بدلاً من عمود واحد */
+    gap: 16px 14px !important;
+    padding: 24px 0 16px !important;
+  }
+
+  /* 2. القسم الأول (الشعار واسم المتجر والوصف): في المنتصف ويمتد بعرض الشاشة */
+  .footer-grid > div:nth-child(1) {
+    grid-column: 1 / -1 !important;
+    text-align: center !important;
+    padding-bottom: 12px !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    margin-bottom: 4px !important;
+  }
+
+  .footer-grid > div:nth-child(1) .footer-brand {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    margin: 0 auto 6px auto !important;
+  }
+
+  .footer-grid > div:nth-child(1) .footer-brand img {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 10px !important;
+  }
+
+  .footer-grid > div:nth-child(1) .footer-brand strong {
+    font-size: 1.15rem !important;
+    color: #fff !important;
+  }
+
+  .footer-grid > div:nth-child(1) p {
+    font-size: 0.82rem !important;
+    margin: 0 auto !important;
+    max-width: 90% !important;
+    line-height: 1.5 !important;
+    color: #a3abbd !important;
+  }
+
+  /* 3. العناوين الفرعية (روابط سريعة والأقسام) */
+  .site-footer h4 {
+    font-size: 0.92rem !important;
+    margin-bottom: 8px !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+  }
+
+  /* 4. القائمتان (روابط سريعة على اليمين، والأقسام على اليسار جنباً إلى جنب) */
+  .footer-grid > div:nth-child(2),
+  .footer-grid > div:nth-child(3) {
+    min-width: 0 !important;
+  }
+
+  .site-footer ul {
+    display: grid !important;
+    gap: 6px !important;
+  }
+
+  .site-footer li, 
+  .site-footer a {
+    font-size: 0.82rem !important;
+    line-height: 1.4 !important;
+  }
+
+  /* 5. قسم تواصل معنا: يمتد بالأسفل بعرض كامل وتتحول الروابط إلى شارات أفقية مدمجة */
+  .footer-grid > div:nth-child(4) {
+    grid-column: 1 / -1 !important;
+    padding-top: 12px !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+    margin-top: 4px !important;
+  }
+
+  .footer-grid > div:nth-child(4) h4 {
+    margin-bottom: 10px !important;
+  }
+
+  .footer-grid > div:nth-child(4) ul {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+  }
+
+  .footer-grid > div:nth-child(4) ul li {
+    display: inline-flex !important;
+    align-items: center !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    padding: 5px 12px !important;
+    border-radius: 999px !important;
+    font-size: 0.8rem !important;
+  }
+
+  .footer-grid > div:nth-child(4) ul li a {
+    color: #e1e5ee !important;
+  }
+
+  /* 6. شريط حقوق المتجر بالأسفل */
+  .footer-bottom {
+    padding: 14px 0 24px !important;
+    font-size: 0.75rem !important;
+    gap: 4px !important;
+  }
+}
