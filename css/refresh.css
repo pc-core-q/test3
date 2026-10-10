@@ -918,21 +918,21 @@ body:has(#detailActions) #backToTopBtn {
     padding: 24px 0 16px !important;
   }
 
-  /* 2. القسم الأول (الشعار واسم المتجر والوصف): في المنتصف ويمتد بعرض الشاشة */
+/* 2. القسم الأول (الشعار واسم المتجر والوصف): محاذاة لليمين ويمتد بعرض الشاشة */
   .footer-grid > div:nth-child(1) {
     grid-column: 1 / -1 !important;
-    text-align: center !important;
+    text-align: right !important; /* محاذاة لليمين */
     padding-bottom: 12px !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
     margin-bottom: 4px !important;
   }
 
   .footer-grid > div:nth-child(1) .footer-brand {
-    display: inline-flex !important;
+    display: flex !important;
     align-items: center !important;
-    justify-content: center !important;
+    justify-content: flex-start !important; /* محاذاة الشعار والاسم لليمين */
     gap: 10px !important;
-    margin: 0 auto 6px auto !important;
+    margin: 0 0 6px 0 !important;
   }
 
   .footer-grid > div:nth-child(1) .footer-brand img {
@@ -948,12 +948,12 @@ body:has(#detailActions) #backToTopBtn {
 
   .footer-grid > div:nth-child(1) p {
     font-size: 0.82rem !important;
-    margin: 0 auto !important;
-    max-width: 90% !important;
+    margin: 0 !important;
+    text-align: right !important; /* محاذاة النص لليمين */
+    max-width: 100% !important;
     line-height: 1.5 !important;
     color: #a3abbd !important;
   }
-
   /* 3. العناوين الفرعية (روابط سريعة والأقسام) */
   .site-footer h4 {
     font-size: 0.92rem !important;
