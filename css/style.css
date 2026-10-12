@@ -1,53 +1,14 @@
-/* استدعاء خط Cairo المعتمد في المتاجر الفاخرة (أنيق، رسمي، ونظيف) */
-@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800&display=swap');
+/* تم حذف @import الخاص بالخطوط ونقله إلى head في HTML لتسريع أول دخول */
 
-:root {
-  /* الخطوط الفاخرة الجديدة */
-  --font-display: 'Cairo', system-ui, -apple-system, sans-serif;
-  --font-body: 'Cairo', system-ui, -apple-system, sans-serif;
-
-  /* المينيماليزم المطلق (أسود وأبيض لإبراز ألوان المكياج) */
-  --olive-900: #000000;
-  --olive-800: #1a1a1a;
-  --olive-700: #000000; /* الأسود الكلاسيكي للأزرار */
-  --olive-600: #333333; 
-  --olive-500: #555555;
-  --olive-400: #888888;
-  --olive-100: #f5f5f5;
-  --olive-50:  #fafafa;
-
-  /* التمييز (شامبين / ذهبي مطفي) */
-  --sand-500: #cfa87e; 
-  
-  --cream: #ffffff; /* الخلفية بيضاء تماماً كالمجلة */
-  --white: #ffffff;
-  
-  --ink: #111111;
-  --ink-light: #444444;
-  --ink-muted: #888888;
-  --border: #e5e5e5; /* حدود حادة ونظيفة */
-  --border-light: #f4f4f4;
-  --danger: #c21919;
-
-  /* --- السر هنا: تغيير الهيكل بالكامل --- */
-  --line: var(--border);
-  --line-strong: #d4d4d4;
-  
-  /* تصفير الحواف الدائرية لجعل الموقع حاداً وفاخراً (Editorial Sharpness) */
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-card: 0px;
-  --radius-ctl: 0px;
-  --radius-pill: 0px; /* تحويل الأزرار من بيضاوية إلى مستطيلة حادة */
-
-  /* إلغاء الظلال العائمة الرخيصة وجعل الموقع مسطحاً (Flat Design) */
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: none;
-  --shadow-soft: none;
-  --shadow-card: none;
-  --shadow-lift: none;
+:root{
+  --olive-900:#0e1730; --olive-800:#16233f; --olive-700:#1d2f57; --olive-600:#2a407a;
+  --olive-500:#3d5a9e; --olive-400:#8a9bc4; --olive-100:#e6eaf3; --olive-50:#f2f4f9;
+  --sand-500:#b4883a; --sand-100:#f6eddb;
+  --cream:#f5f6f7; --white:#fff; --ink-900:#14161c; --ink-700:#363a45; --ink-600:#5f6573; --ink-400:#8b91a0; --ink-300:#bcc1cc;
+  --line:#e6e8ec; --line-strong:#d0d4dc; --danger:#c23b3b; --danger-bg:#fbeaea; --success:#3d5a9e;
+  --radius-xl:28px; --radius-lg:20px; --radius-md:14px; --radius-sm:10px; --radius-pill:999px;
+  --shadow-soft:0 8px 28px rgba(14,23,48,.06); --shadow-card:0 14px 38px rgba(14,23,48,.08); --shadow-lift:0 22px 55px rgba(14,23,48,.12);
+  --font-display:'El Messiri','IBM Plex Sans Arabic',sans-serif; --font-body:'IBM Plex Sans Arabic','Tajawal',sans-serif; --container:1240px;
 }
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--cream);color:var(--ink-900);font-family:var(--font-body);line-height:1.7;-webkit-font-smoothing:antialiased}img{max-width:100%;display:block}a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}button{cursor:pointer}p{color:var(--ink-600);margin:0 0 1em}h1,h2,h3,h4{font-family:var(--font-display);line-height:1.25;margin:0 0 .5em;color:var(--ink-900)}h1{font-size:clamp(2rem,4vw,3.5rem);font-weight:800}h2{font-size:clamp(1.55rem,3vw,2.35rem);font-weight:800}h3{font-size:1.2rem;font-weight:700}.container{width:min(100%,var(--container));margin-inline:auto;padding-inline:22px}.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}:focus-visible{outline:3px solid rgba(61,90,158,.3);outline-offset:3px}
 /* Skeleton Loading للظهور الفوري في أول دخول */
@@ -452,60 +413,3 @@
 .icon-choice input{position:absolute;opacity:0;pointer-events:none}
 .icon-choice svg{width:20px;height:20px}
 .icon-choice:hover{border-color:var(--olive-400)}
-/* =========================================================
-   تغيير الهيكل العام ليتناسب مع الكوزمتك (إلغاء الفقاعات والقفز)
-   ========================================================= */
-
-/* جعل البطاقات مسطحة، وإلغاء تأثير القفز عند التمرير */
-.product-card {
-  border: 1px solid var(--border) !important;
-  border-radius: 0 !important;
-}
-.product-card:hover {
-  transform: none !important; /* إلغاء القفز */
-  border-color: var(--olive-900) !important; /* تحديد أسود أنيق بدل الظل */
-}
-
-/* الأزرار: مستطيلة، حادة، راقية */
-.btn {
-  border-radius: 0 !important;
-  letter-spacing: 0.5px;
-  text-transform: uppercase; /* يضيف فخامة للكلمات الإنجليزية إن وجدت */
-}
-.btn-primary:hover {
-  transform: none !important;
-  background-color: var(--olive-600) !important;
-}
-
-/* بطاقات الأقسام (الدائرية أصبحت مربعات مسطحة نظيفة) */
-.cat-chip {
-  border-radius: 0 !important;
-  border: 1px solid var(--border) !important;
-  background: transparent !important;
-}
-.cat-chip:hover {
-  transform: none !important;
-  border-color: var(--olive-900) !important;
-}
-.cat-chip .cat-icon {
-  background: transparent !important;
-  border-radius: 50% !important; /* الأيقونة فقط تبقى دائرية كلاسيكية */
-  border: 1px solid var(--line-strong);
-}
-
-/* تنظيف سلايدر الهيرو من الخلفيات المعقدة */
-.hero:before, .hero:after {
-  display: none !important; /* إزالة الدوائر الخلفية الملونة */
-}
-.hero-art {
-  border-radius: 0 !important;
-  background: #f5f5f5 !important;
-}
-.hero-art:before {
-  display: none !important;
-}
-
-/* تنظيف خانة البحث لتصبح كلاسيكية بدل البيضاوية */
-.search-box input, .sort-select {
-  border-radius: 0 !important;
-}
