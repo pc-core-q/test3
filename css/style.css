@@ -1,56 +1,54 @@
-/* تم حذف @import الخاص بالخطوط ونقله إلى head في HTML لتسريع أول دخول */
-
 :root {
   /* الخطوط */
   --font-display: 'Tajawal', system-ui, -apple-system, sans-serif;
   --font-body: 'Tajawal', system-ui, -apple-system, sans-serif;
 
-  /* اللون الأساسي (Warm Taupe / Cashmere - فخامة هادئة وحديثة) */
-  --olive-900: #2a2522; /* فحمّي دافئ مائل للبني الداكن جداً (للفوتر والعناوين الكبرى) */
-  --olive-800: #4a413c; /* بني رمادي داكن */
-  --olive-700: #75665e; /* لون (Taupe) الراقي للأزرار والتفاعلات الرئيسية */
-  --olive-600: #8f7f76; 
-  --olive-500: #b5a69d;
-  --olive-400: #c9bcba;
-  --olive-300: #dcd3d0;
-  --olive-200: #ebe4e1;
-  --olive-100: #f2ece9; /* خلفيات فاتحة جداً للعناصر النشطة */
-  --olive-50:  #f7f5f3; /* خلفية ناعمة جداً بلون الكشمير المضيء للبطاقات */
+  /* اللون الأساسي (Midnight Black & Ash - الفخامة الكلاسيكية المطلقة) */
+  --olive-900: #000000; /* أسود حالك للفوتر والعناوين الفاخرة */
+  --olive-800: #1a1a1a; /* أسود مطفي للنصوص البارزة */
+  --olive-700: #0f0f0f; /* أسود أنيق للأزرار الرئيسية (مثل سيفورا) */
+  --olive-600: #333333; 
+  --olive-500: #555555;
+  --olive-400: #888888;
+  --olive-300: #cccccc;
+  --olive-200: #e5e5e5;
+  --olive-100: #f2f2f2; /* رمادي فاتح جداً لخلفيات الأزرار عند التمرير */
+  --olive-50:  #fafafa; /* أبيض مكسور للبطاقات والأقسام ليعطي مساحة نظيفة */
 
-  /* ألوان التمييز (Soft Bronze / Muted Terracotta - لمسة حيوية أنيقة) */
-  --sand-500: #c49775; /* برونزي ناعم للشارات والتمييز (بديل الذهبي المزعج) */
-  --sand-400: #d3ab8c;
-  --sand-300: #dfc2a9;
-  --sand-200: #ebd8c7;
-  --sand-100: #f5ebe4;
-  --sand-50:  #fcf8f5;
+  /* ألوان التمييز (Soft Champagne / Pearl - لمسة أنثوية هادئة جداً للشارات فقط) */
+  --sand-500: #d4bda5; /* شامبين/لؤلؤي دافئ (بيج ذهبي مطفي) للتمييز الراقي */
+  --sand-400: #e0cebb;
+  --sand-300: #ebdcd0;
+  --sand-200: #f2e9e1;
+  --sand-100: #f9f5f1;
+  --sand-50:  #fdfcfb;
 
-  /* الخلفيات والأسطح (Alabaster & Pure White) */
-  --cream: #fcfbf9;    /* خلفية الموقع العامة بلون المرمر/الألباستر (أبيض دافئ جداً) */
-  --white: #ffffff;    /* أبيض ناصع للبطاقات لتبرز بوضوح */
+  /* الخلفيات والأسطح (Pure White) */
+  --cream: #ffffff;    /* خلفية الموقع بيضاء تماماً (Blank Canvas) لإبراز ألوان المكياج */
+  --white: #ffffff;    /* أبيض ناصع للبطاقات */
 
   /* النصوص والحدود */
-  --ink: #1f1c1a;       /* أسود دافئ ومريح للعين (ليس أسود 100%) */
-  --ink-light: #47413d; /* نصوص فرعية */
-  --ink-muted: #7a736e; /* تفاصيل وملاحظات */
-  --border: #e8e4e1;    /* حدود رمادية دافئة وناعمة */
-  --border-light: #f2efec;
+  --ink: #111111;       /* أسود حاد لقراءة واضحة جداً */
+  --ink-light: #444444; /* نصوص فرعية */
+  --ink-muted: #777777; /* تفاصيل وملاحظات */
+  --border: #eaeaea;    /* حدود رمادية فاتحة جداً وأنيقة (لا تشتت العين) */
+  --border-light: #f4f4f4;
 
-  /* العروض والتنبيهات (Soft Brick Red - أحمر طوبي أنيق لا يؤذي العين) */
-  --danger: #c9655f;    
-  --danger-bg: #fdf4f3;
+  /* العروض والتنبيهات (Classic Red) */
+  --danger: #d92525;    /* أحمر كلاسيكي صريح للعروض ونفاد الكمية (مثل ماركات التجميل) */
+  --danger-bg: #fdf2f2;
 
-  /* المتغيرات العامة والظلال (ناعمة جداً لتناسب الفخامة) */
+  /* المتغيرات العامة والظلال (ظلال ناعمة جداً لتبدو البطاقات مسطحة وحديثة) */
   --line: var(--border);
-  --line-strong: #d9d4d0;
+  --line-strong: #d4d4d4;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-card: 16px;
   --radius-ctl: 12px;
-  --shadow-sm: 0 1px 3px rgba(42, 37, 34, 0.04);
-  --shadow-md: 0 4px 10px rgba(42, 37, 34, 0.06);
-  --shadow-lg: 0 12px 24px rgba(42, 37, 34, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.08);
 }
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--cream);color:var(--ink-900);font-family:var(--font-body);line-height:1.7;-webkit-font-smoothing:antialiased}img{max-width:100%;display:block}a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}button{cursor:pointer}p{color:var(--ink-600);margin:0 0 1em}h1,h2,h3,h4{font-family:var(--font-display);line-height:1.25;margin:0 0 .5em;color:var(--ink-900)}h1{font-size:clamp(2rem,4vw,3.5rem);font-weight:800}h2{font-size:clamp(1.55rem,3vw,2.35rem);font-weight:800}h3{font-size:1.2rem;font-weight:700}.container{width:min(100%,var(--container));margin-inline:auto;padding-inline:22px}.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}:focus-visible{outline:3px solid rgba(61,90,158,.3);outline-offset:3px}
 /* Skeleton Loading للظهور الفوري في أول دخول */
