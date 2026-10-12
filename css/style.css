@@ -1,14 +1,54 @@
 /* تم حذف @import الخاص بالخطوط ونقله إلى head في HTML لتسريع أول دخول */
 
-:root{
-  --olive-900:#0e1730; --olive-800:#16233f; --olive-700:#1d2f57; --olive-600:#2a407a;
-  --olive-500:#3d5a9e; --olive-400:#8a9bc4; --olive-100:#e6eaf3; --olive-50:#f2f4f9;
-  --sand-500:#b4883a; --sand-100:#f6eddb;
-  --cream:#f5f6f7; --white:#fff; --ink-900:#14161c; --ink-700:#363a45; --ink-600:#5f6573; --ink-400:#8b91a0; --ink-300:#bcc1cc;
-  --line:#e6e8ec; --line-strong:#d0d4dc; --danger:#c23b3b; --danger-bg:#fbeaea; --success:#3d5a9e;
-  --radius-xl:28px; --radius-lg:20px; --radius-md:14px; --radius-sm:10px; --radius-pill:999px;
-  --shadow-soft:0 8px 28px rgba(14,23,48,.06); --shadow-card:0 14px 38px rgba(14,23,48,.08); --shadow-lift:0 22px 55px rgba(14,23,48,.12);
-  --font-display:'El Messiri','IBM Plex Sans Arabic',sans-serif; --font-body:'IBM Plex Sans Arabic','Tajawal',sans-serif; --container:1240px;
+:root {
+  /* الخطوط */
+  --font-display: 'Tajawal', system-ui, -apple-system, sans-serif;
+  --font-body: 'Tajawal', system-ui, -apple-system, sans-serif;
+
+  /* اللون الأساسي (Medical Teal / Petrol Blue) */
+  --olive-900: #083344; /* كحلي تيل داكن جداً للعناوين الفائقة */
+  --olive-850: #0e485e; 
+  --olive-800: #155e75; /* الدرجة الأساسية للعناوين والهيدر */
+  --olive-700: #0e7490; /* اللون التفاعلي الرئيسي للأزرار والروابط */
+  --olive-600: #0891b2; /* تيل حيوي للحالات النشطة (Hover) */
+  --olive-500: #06b6d4; 
+  --olive-400: #22d3ee;
+  --olive-300: #67e8f9;
+  --olive-200: #a5f3fc;
+  --olive-100: #cffafe; /* خلفيات فاتحة جداً للعناصر النشطة */
+  --olive-50:  #ecfeff; /* خلفية ناعمة للبطاقات والمربعات التنبيهية */
+
+  /* ألوان التمييز والتأكيد (Medical Mint / Health Green) */
+  --sand-500: #059669; /* أخضر طبي ناصع للأزرار الرئيسية وشارة التوفر */
+  --sand-400: #10b981; /* أخضر النعناع الطبي لحالات التمرير */
+  --sand-300: #34d399;
+  --sand-200: #a7f3d0;
+  --sand-100: #d1fae5; /* خلفية خفيفة للشارات (Badges) */
+  --sand-50:  #ecfdf5;
+
+  /* الخلفيات العامة والأسطح */
+  --cream: #f8fafc;    /* خلفية الموقع العامة (رمادي-ثلجي مريح للعين) */
+  --white: #ffffff;    /* أبيض ناصع لخلفية بطاقات المنتجات */
+
+  /* النصوص والرماديات (Slate Gray) */
+  --ink: #0f172a;       /* نصوص داكنة بتباين عالي */
+  --ink-light: #334155; /* نصوص فرعية */
+  --ink-muted: #64748b; /* أوصاف تفصيلية وتواريخ */
+  --border: #e2e8f0;    /* خطوط الفصل والحدود */
+  --border-light: #f1f5f9;
+
+  /* التنبيهات والعروض (Medical Red / Emergency) */
+  --danger: #ef4444;    /* أحمر طبي للعروض ونفاد الكمية والأخطاء */
+  --danger-bg: #fef2f2;
+
+  /* الظلال وحواف التصميم */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px 0 rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.1);
 }
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--cream);color:var(--ink-900);font-family:var(--font-body);line-height:1.7;-webkit-font-smoothing:antialiased}img{max-width:100%;display:block}a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}button{cursor:pointer}p{color:var(--ink-600);margin:0 0 1em}h1,h2,h3,h4{font-family:var(--font-display);line-height:1.25;margin:0 0 .5em;color:var(--ink-900)}h1{font-size:clamp(2rem,4vw,3.5rem);font-weight:800}h2{font-size:clamp(1.55rem,3vw,2.35rem);font-weight:800}h3{font-size:1.2rem;font-weight:700}.container{width:min(100%,var(--container));margin-inline:auto;padding-inline:22px}.visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}:focus-visible{outline:3px solid rgba(61,90,158,.3);outline-offset:3px}
 /* Skeleton Loading للظهور الفوري في أول دخول */
