@@ -109,7 +109,8 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  justify-content: flex-start !important;
+  justify-content: center !important;
+  gap: 10px !important;
   flex: 0 0 126px !important;
   width: 126px !important;
   min-height: 162px !important;
@@ -140,7 +141,7 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   background: var(--olive-50, #f2f4f9) !important;
   border: 1.5px solid var(--line-strong, #d0d4dc) !important;
   box-shadow: 0 3px 8px rgba(0,0,0,0.05) !important;
-  margin-bottom: 10px !important;
+  margin-bottom: 0 !important;
   overflow: hidden !important;
   display: flex !important;
   align-items: center !important;
@@ -167,7 +168,7 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
   -webkit-line-clamp: 2 !important;
   -webkit-box-orient: vertical !important;
   overflow: hidden !important;
-  margin: auto 0 0 0 !important;
+  margin: 0 !important;
   width: 100% !important;
 }
 
@@ -189,7 +190,7 @@ h2{font-size:clamp(1.35rem,2.6vw,2rem)}
     height: 78px !important;
     min-width: 78px !important;
     min-height: 78px !important;
-    margin-bottom: 8px !important;
+    margin-bottom: 0 !important;
   }
   .cat-chip span.name {
     font-size: 0.86rem !important;
