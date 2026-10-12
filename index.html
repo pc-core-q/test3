@@ -1,31 +1,11 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-  <!-- العناوين الأساسية لمحركات البحث والمتصفحات -->
-  <title>متجرك الإلكتروني | تسوق أفضل المنتجات بسهولة</title>
-  <meta name="description" content="تصفّح تشكيلة واسعة من المنتجات المختارة بعناية واطلب مباشرة عبر واتساب مع توصيل سريع لباب بيتك.">
+  <meta charset="UTF-8">
+  <title>الرئيسية | متجرك الإلكتروني</title>
+  <meta name="description" content="تصفّح منتجاتنا واطلب مباشرة عبر واتساب بسهولة وسرعة.">
   <link rel="icon" href="assets/logo/logo.png">
-
-  <!-- ========================================== -->
-  <!-- تهيئة الروابط للمشاركة (WhatsApp / Telegram / Social) -->
-  <!-- ========================================== -->
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://test3-9ri.pages.dev/">
-  <meta property="og:locale" content="ar_AR">
-  <meta property="og:site_name" content="متجرك الإلكتروني">
-  <meta property="og:title" content="متجرك الإلكتروني | تسوق أفضل المنتجات بسهولة وثقة">
-  <meta property="og:description" content="تصفّح تشكيلة واسعة من المنتجات واطلب مباشرة عبر واتساب بسهولة وسرعة.">
-  <meta property="og:image" content="https://test3-9ri.pages.dev/assets/logo/logo.png">
-  <meta property="og:image:alt" content="شعار المتجر">
-
-  <!-- وسوم منصة X / Twitter -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="متجرك الإلكتروني | تسوق أفضل المنتجات بسهولة وثقة">
-  <meta name="twitter:description" content="تصفّح تشكيلة واسعة من المنتجات واطلب مباشرة عبر واتساب بسهولة وسرعة.">
-  <meta name="twitter:image" content="https://test3-9ri.pages.dev/assets/logo/logo.png">
 
   <!-- مصافحة مسبقة سريعة للخوادم الخارجية لمنع التأخير -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,15 +13,11 @@
   <link rel="preconnect" href="https://test3-2a6de-default-rtdb.europe-west1.firebasedatabase.app" crossorigin>
   <link rel="preconnect" href="https://ik.imagekit.io" crossorigin>
 
-  <!-- تحميل الخطوط في الخلفية دون تعطيل ظهور الصفحة للإنترنت الضعيف -->
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
-  <noscript>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-  </noscript>
+  <!-- تحميل الخطوط بدون تعطيل العرض في أول دخول عبر display=swap -->
+  <link href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="css/style.css?v=50">
-  <link rel="stylesheet" href="css/refresh.css?v=50">
+  <link rel="stylesheet" href="css/style.css?v=48">
+  <link rel="stylesheet" href="css/refresh.css?v=48">
 </head>
 <body>
 
@@ -75,7 +51,7 @@
     </div>
   </section>
 
-  <!-- قسم الأقسام الرئيسية -->
+  <!-- قسم الأقسام بعد إبراز عنوانه وإضافة زر العرض لشد الانتباه -->
   <section class="section section-categories-highlight" id="categories">
     <div class="container">
       <div class="section-head">
@@ -90,7 +66,6 @@
     </div>
   </section>
 
-  <!-- قسم المنتجات المميزة -->
   <section class="section section-alt">
     <div class="container">
       <div class="section-head">
@@ -100,6 +75,7 @@
         </div>
         <a href="products.html?filter=featured" class="btn btn-outline btn-sm">عرض الكل</a>
       </div>
+      <!-- هياكل تحميل Skeleton لمنع الفراغ في أول ثانية للعميل -->
       <div class="product-grid" id="featuredGrid">
         <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
         <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
@@ -109,7 +85,6 @@
     </div>
   </section>
 
-  <!-- قسم العروض الخاصة -->
   <section class="section">
     <div class="container">
       <div class="section-head">
@@ -128,7 +103,6 @@
     </div>
   </section>
 
-  <!-- قسم وصل حديثاً -->
   <section class="section section-alt">
     <div class="container">
       <div class="section-head">
@@ -147,7 +121,6 @@
     </div>
   </section>
 
-  <!-- قسم المزايا -->
   <section class="section">
     <div class="container">
       <div class="section-head">
@@ -181,7 +154,6 @@
     </div>
   </section>
 
-  <!-- تواصل معنا -->
   <section class="section section-alt">
     <div class="container">
       <div class="contact-band" id="contactBand">
@@ -198,13 +170,13 @@
 <div id="site-footer"></div>
 
 <!-- تحميل السكربتات بالتوازي دون حجب الواجهة باستخدام defer -->
-<script src="js/config.js?v=50" defer></script>
-<script src="js/icons.js?v=50" defer></script>
+<script src="js/config.js?v=48" defer></script>
+<script src="js/icons.js?v=48" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" defer></script>
-<script src="js/store.js?v=50" defer></script>
-<script src="js/whatsapp.js?v=50" defer></script>
-<script src="js/app.js?v=50" defer></script>
+<script src="js/store.js?v=48" defer></script>
+<script src="js/whatsapp.js?v=48" defer></script>
+<script src="js/app.js?v=48" defer></script>
 <script>
   let slideInterval = null;
 
@@ -213,23 +185,11 @@
       const imgUrl = (typeof window.getIkUrl === 'function')
         ? window.getIkUrl(product.image, 700, 85)
         : product.image;
-      return '<img src="' + escapeHtml(imgUrl) + '" ' +
-             'alt="' + escapeHtml(product.name || "") + '" ' +
-             'class="product-media-img" loading="lazy" decoding="async" ' +
-             'onerror="this.onerror=null; this.src=\'https://placehold.co/600x600/f2f4f9/16233f?text=صورة+تجريبية\';">';
+      return '<img src="' + escapeHtml(imgUrl) + '" alt="' + escapeHtml(product.name || "") + '" class="product-media-img" loading="lazy" decoding="async">';
     }
     const cat = Store.getCategories().find(function (c) { return c.id === product.categoryId; });
     const key = cat ? cat.icon : "box";
     return '<div class="placeholder-icon">' + iconSvg(key) + "</div>";
-  }
-
-  function productHasOptions(product) {
-    if (!product) return false;
-    const hasColors = Array.isArray(product.colors) && product.colors.length > 0;
-    const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
-    const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
-    const hasMatrix = typeof Store !== "undefined" && typeof Store.hasVariantMatrix === "function" && Store.hasVariantMatrix(product);
-    return hasColors || hasSizes || hasVariants || hasMatrix;
   }
   
   function renderHomeProductCard(product) {
@@ -264,14 +224,6 @@
       }
     }
 
-    const hasOptions = productHasOptions(product);
-
-    const actionIcon = hasOptions
-      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:block;margin:auto;"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>'
-      : iconSvg("cart");
-
-    const actionTitle = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات والمواصفات" : "أضف للسلة");
-
     return (
       '<article class="product-card">' +
         '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="product-media">' +
@@ -286,13 +238,13 @@
             '<span class="price">' + formatPrice(product.price) + "</span>" +
             '<div class="product-actions">' +
               '<button class="btn btn-primary" ' + (outOfStock ? "disabled" : "") +
-                ' title="' + actionTitle + '"' +
+                ' title="' + (outOfStock ? "غير متوفر" : "أضف للسلة") + '"' +
                 ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
-                actionIcon +
+                iconSvg("cart") +
               "</button>" +
-            "</div>" +
-          "</div>" +
-        "</div>" +
+            '</div>' +
+          '</div>' +
+        '</div>' +
       '</article>'
     );
   }
@@ -311,8 +263,8 @@
       product = await Store.loadProductById(productId);
     }
     if (!product || !Store.isProductAvailable(product)) return;
-
-    if (productHasOptions(product)) {
+    const hasOptions = (product.variants && product.variants.length > 0) || Store.hasVariantMatrix(product);
+    if (hasOptions) {
         window.location.href = 'product.html?id=' + encodeURIComponent(productId);
         return;
     }
@@ -368,9 +320,9 @@
     const cachedFeatured = JSON.parse(localStorage.getItem("ws_products_filter_featured") || "[]");
     const cachedOffers = JSON.parse(localStorage.getItem("ws_products_filter_offers") || "[]");
     const cachedNew = JSON.parse(localStorage.getItem("ws_products_filter_new") || "[]");
-    if (cachedFeatured.length) renderGridInto("featuredGrid", cachedFeatured.slice(0, 4));
-    if (cachedOffers.length) renderGridInto("offerGrid", cachedOffers.slice(0, 4));
-    if (cachedNew.length) renderGridInto("newGrid", cachedNew.slice(0, 4));
+    if (cachedFeatured.length) renderGridInto("featuredGrid", cachedFeatured.slice(0, 8));
+    if (cachedOffers.length) renderGridInto("offerGrid", cachedOffers.slice(0, 8));
+    if (cachedNew.length) renderGridInto("newGrid", cachedNew.slice(0, 8));
 
     renderAdsSlider();
 
@@ -378,24 +330,14 @@
       window.updateCartBadge();
     }
 
-    try {
-      const featuredRes = await Store.loadProductsPageByField("featured", true, 4, null);
-      if (featuredRes && featuredRes.products) {
-        renderGridInto("featuredGrid", featuredRes.products, "لا توجد منتجات مميزة حاليًا.");
-      }
-
-      const offerRes = await Store.loadProductsPageByField("isOffer", true, 4, null);
-      if (offerRes && offerRes.products) {
-        renderGridInto("offerGrid", offerRes.products, "لا توجد عروض وتخفيضات حاليًا.");
-      }
-
-      const newRes = await Store.loadProductsPageByField("isNew", true, 4, null);
-      if (newRes && newRes.products) {
-        renderGridInto("newGrid", newRes.products, "لا توجد منتجات جديدة حاليًا.");
-      }
-    } catch (e) {
-      console.error("Home loading error:", e);
-    }
+    const homeResults = await Promise.all([
+      Store.loadProductsByField("featured", true, "featured", false),
+      Store.loadProductsByField("isOffer", true, "offers", false),
+      Store.loadProductsByField("isNew", true, "new", false)
+    ]);
+    renderGridInto("featuredGrid", homeResults[0].slice(0, 8), "لا توجد منتجات مميزة حاليًا.");
+    renderGridInto("offerGrid", homeResults[1].slice(0, 8), "لا توجد عروض وتخفيضات حاليًا.");
+    renderGridInto("newGrid", homeResults[2].slice(0, 8), "لا توجد منتجات جديدة حاليًا.");
   }
 
   function renderAdsSlider() {
