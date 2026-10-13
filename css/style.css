@@ -14,15 +14,72 @@
    they now point at the pharmacy palette.
    ========================================================================== */
 
-:root{
-  --olive-900:#0e1730; --olive-800:#16233f; --olive-700:#1d2f57; --olive-600:#2a407a;
-  --olive-500:#3d5a9e; --olive-400:#8a9bc4; --olive-100:#e6eaf3; --olive-50:#f2f4f9;
-  --sand-500:#b4883a; --sand-100:#f6eddb;
-  --cream:#f5f6f7; --white:#fff; --ink-900:#14161c; --ink-700:#363a45; --ink-600:#5f6573; --ink-400:#8b91a0; --ink-300:#bcc1cc;
-  --line:#e6e8ec; --line-strong:#d0d4dc; --danger:#c23b3b; --danger-bg:#fbeaea; --success:#3d5a9e;
-  --radius-xl:28px; --radius-lg:20px; --radius-md:14px; --radius-sm:10px; --radius-pill:999px;
-  --shadow-soft:0 8px 28px rgba(14,23,48,.06); --shadow-card:0 14px 38px rgba(14,23,48,.08); --shadow-lift:0 22px 55px rgba(14,23,48,.12);
-  --font-display:'El Messiri','IBM Plex Sans Arabic',sans-serif; --font-body:'IBM Plex Sans Arabic','Tajawal',sans-serif; --container:1240px;
+:root {
+  /* 1. تعيين الألوان الطبية لتأخذ درجات الزيتوني والرملي القديمة */
+  --teal: #3d5a9e;          /* كان التركواز، الآن أزرق زيتوني (--olive-500) */
+  --teal-deep: #1d2f57;     /* كان تركواز غامق، الآن زيتوني داكن (--olive-700) */
+  --teal-press: #16233f;    /* درجة الضغط (--olive-800) */
+  --teal-light: #e6eaf3;    /* خلفيات الأزرار الفاتحة (--olive-100) */
+  --teal-wash: #f2f4f9;     /* أفتح درجة (--olive-50) */
+  
+  --navy: #0e1730;          /* كان كحلي، الآن اللون الليلي الأصلي (--olive-900) */
+  --navy-2: #16233f;        /* الدرجة الأقل حدة (--olive-800) */
+  
+  --soft-blue: #eef1f7;     /* لون هادئ للمساحات الكبيرة */
+  --bg: #f5f6f7;            /* لون الخلفية السكري القديم (--cream) */
+  
+  --text: #363a45;          /* لون النصوص الأساسية (--ink-700) */
+  --text-2: #8b91a0;        /* لون النصوص الثانوية (--ink-400) */
+  
+  --border: #e6e8ec;        /* لون الحدود العادية (--line) */
+  --border-strong: #d0d4dc; /* لون الحدود البارزة (--line-strong) */
+  --border-soft: #f2f4f9;
+
+  /* 2. ألوان الحالات (النجاح، الخطأ، التنبيه) */
+  --success: #168a67;       /* لون الأخضر الأصلي (الواتساب والنجاح) */
+  --success-bg: #e7f5ee; 
+  --success-line: #bfe3d0;
+  
+  --warning: #b4883a;       /* استخدمنا اللون الرملي القديم هنا (--sand-500) */
+  --warning-bg: #f6eddb;    /* (--sand-100) */
+  --warning-line: #e3d3b3; 
+  --warning-ink: #7a5a22;
+  
+  --error: #c23b3b;         /* اللون الأحمر القديم (--danger) */
+  --error-bg: #fbeaea;      /* (--danger-bg) */
+  --error-line: #f2c4c4;   
+  --error-ink: #9f3838;
+
+  /* 3. المتغيرات القديمة لدعم أكواد HTML المضمنة (لا تقم بحذفها) */
+  --olive-900: var(--navy); 
+  --olive-800: var(--navy-2); 
+  --olive-700: var(--teal-deep); 
+  --olive-600: #2a407a;
+  --olive-500: var(--teal); 
+  --olive-400: #8a9bc4; 
+  --olive-100: var(--teal-light); 
+  --olive-50: var(--teal-wash);
+  
+  --sand-500: #b4883a;
+  --sand-100: #f6eddb;
+  
+  --cream: var(--bg); 
+  --white: #fff;
+  
+  --ink-900: #14161c; 
+  --ink-800: #1F3347; 
+  --ink-700: var(--text); 
+  --ink-600: #5f6573; 
+  --ink-500: var(--text-2); 
+  --ink-400: var(--text-2); 
+  --ink-300: #bcc1cc;
+  
+  --line: var(--border); 
+  --line-strong: var(--border-strong); 
+  --line-soft: var(--border-soft);
+  
+  --danger: var(--error);
+  --danger-bg: var(--error-bg);
 }
 
 /* ==========================================================================
