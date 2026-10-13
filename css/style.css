@@ -15,21 +15,22 @@
    ========================================================================== */
 
 :root{
-  /* ---- Brand palette ---- */
-  --teal:#159A9C;          /* primary teal: accents, borders, focus, icons */
-  --teal-deep:#087F83;     /* deep teal: filled buttons + teal text (AA contrast on white) */
-  --teal-press:#066467;    /* hover / pressed state of deep teal */
-  --teal-light:#E5F6F5;    /* light teal tint */
-  --teal-wash:#F2FAFA;     /* faintest teal tint */
-  --navy:#172B45;          /* headings, important text, footer, admin sidebar */
-  --navy-2:#1F3A5C;
-  --soft-blue:#EAF2F8;
-  --bg:#F7FAFC;            /* off-white page background */
-  --text:#263746;          /* primary text */
-  --text-2:#687985;        /* secondary text */
-  --border:#DCE6EB;
-  --border-strong:#C3D2DA; /* inputs and controls */
-  --border-soft:#EAF0F3;
+  /* ---- Brand palette (Fashion & Apparel Theme) ---- */
+  /* الألوان مصممة لتكون محايدة (أسود/أبيض/بيج) لإبراز صور الملابس */
+  --teal: #A38B73;          /* اللون الثانوي: بيج هادئ للإطارات والأيقونات والتأثيرات الخفيفة */
+  --teal-deep: #1A1A1A;     /* اللون الأساسي الداكن: أسود فخم للأزرار الرئيسية والنصوص البارزة */
+  --teal-press: #000000;    /* لون الأزرار عند الضغط/التمرير (أسود قاتم) */
+  --teal-light: #F7F5F2;    /* خلفيات ناعمة جداً مائلة للبيج الفاتح */
+  --teal-wash: #FCFCFA;     /* أفتح درجة من الخلفيات */
+  --navy: #111111;          /* العناوين، الفوتر، القائمة الجانبية للأدمن (أسود داكن) */
+  --navy-2: #333333;        /* نصوص العناوين الفرعية */
+  --soft-blue: #F9F9F9;     /* خلفية سلايدر الإعلانات (رمادي فاتح جداً) */
+  --bg: #FFFFFF;            /* خلفية الموقع الأساسية بيضاء بالكامل لنظافة التصميم */
+  --text: #222222;          /* النصوص الأساسية */
+  --text-2: #666666;        /* النصوص الثانوية والوصف */
+  --border: #EAEAEA;        /* الفواصل والحدود */
+  --border-strong: #D1D1D1; /* حدود حقول الإدخال */
+  --border-soft: #F5F5F5;
 
   /* ---- Status colours (keep their meaning) ---- */
   --success:#23865B; --success-bg:#E7F5EE; --success-line:#BFE3D0;
@@ -38,21 +39,22 @@
 
   /* ---- Legacy names used by HTML / JS inline styles (do not remove) ---- */
   --olive-900:var(--navy); --olive-800:var(--navy-2); --olive-700:var(--teal-deep); --olive-600:var(--teal-deep);
-  --olive-500:var(--teal); --olive-400:#8CCFCF; --olive-100:var(--teal-light); --olive-50:var(--teal-wash);
+  --olive-500:var(--teal); --olive-400:#BCAFA2; --olive-100:var(--teal-light); --olive-50:var(--teal-wash);
   --sand-500:var(--teal-deep); --sand-100:var(--teal-light);
   --cream:var(--bg); --white:#fff;
-  --ink-900:var(--navy); --ink-800:#1F3347; --ink-700:var(--text); --ink-600:#566976; --ink-500:var(--text-2); --ink-400:var(--text-2); --ink-300:#B6C4CD;
+  --ink-900:var(--navy); --ink-800:#333333; --ink-700:var(--text); --ink-600:#555555; --ink-500:var(--text-2); --ink-400:var(--text-2); --ink-300:#BBBBBB;
   --line:var(--border); --line-strong:var(--border-strong); --line-soft:var(--border-soft);
-  --danger:#C93C3C;        /* offer badge / destructive text: white-on-red passes AA */
+  --danger:#C93C3C;        
   --danger-bg:var(--error-bg);
 
   /* ---- Shape, depth, type ---- */
   --radius-xl:24px; --radius-lg:18px; --radius-md:14px; --radius-sm:10px; --radius-pill:999px;
   --r-card:16px; --r-ctl:12px;
-  --shadow-soft:0 1px 3px rgba(23,43,69,.06);
-  --shadow-card:0 6px 18px rgba(23,43,69,.08);
-  --shadow-lift:0 14px 36px rgba(23,43,69,.14);
-  --ring:0 0 0 3px rgba(21,154,156,.25);
+  /* تخفيف الظلال لتناسب التصميم المسطح والأنيق للملابس */
+  --shadow-soft:0 1px 3px rgba(0,0,0,.04);
+  --shadow-card:0 6px 18px rgba(0,0,0,.06);
+  --shadow-lift:0 14px 36px rgba(0,0,0,.1);
+  --ring:0 0 0 3px rgba(26,26,26,.15);
   --font-display:'IBM Plex Sans Arabic','Tajawal',system-ui,-apple-system,'Segoe UI',sans-serif;
   --font-body:'IBM Plex Sans Arabic','Tajawal',system-ui,-apple-system,'Segoe UI',sans-serif;
   --container:1240px;
