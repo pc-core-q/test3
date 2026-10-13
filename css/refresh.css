@@ -63,3 +63,16 @@
 @media(max-width:650px){
   #backToTopBtn{bottom:20px;right:16px}
 }
+/* 1. إلغاء العرض الثابت (60px) للعمود الأول (التاريخ) وإعطائه مساحة كافية */
+.admin-table td:first-child,
+.admin-table th:first-child {
+  width: auto !important;
+  min-width: 120px !important;
+  white-space: nowrap !important; /* لمنع انكسار نص التاريخ والوقت وتداخله */
+}
+
+/* 2. زيادة المسافة (الفراغ الداخلي) بين جميع أعمدة الجدول لترتيب أريح للعين */
+.admin-table th, 
+.admin-table td {
+  padding-inline: 18px !important; 
+}
