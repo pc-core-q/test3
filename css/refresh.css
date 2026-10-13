@@ -6,7 +6,7 @@
    layout behaviour that exists on the storefront alone (swipe rows, sticky
    product action bar, compact mobile footer, touch-device tweaks).
    Nothing here redefines a colour, radius or font: re-branding stays a
-   one-file job (the :root block in style.css).
+   one-file job (the Brand block in style.css).
    ========================================================================== */
 
 /* ---- Touch devices: no hover "lift" (it sticks after a tap) ---- */
@@ -34,7 +34,7 @@
 
 /* ---- Product page: sticky action bar on phones and small tablets ---- */
 @media(max-width:900px){
-  .detail-actions{position:fixed;inset-inline:0;bottom:0;z-index:90;margin:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));flex-wrap:nowrap;background:#fff;border-top:1px solid var(--border);box-shadow:0 -4px 16px rgba(23,43,69,.08)}
+  .detail-actions{position:fixed;inset-inline:0;bottom:0;z-index:90;margin:0;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));flex-wrap:nowrap;background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -6px 20px rgba(15,23,42,.08)}
   .detail-actions .btn{flex:1;min-width:0;padding-inline:10px}
   body:has(#detailActions){padding-bottom:84px}
   body:has(#detailActions) .toast{bottom:92px}
@@ -44,35 +44,25 @@
 /* ---- Footer: compact two-column layout on phones ---- */
 @media(max-width:768px){
   .site-footer .footer-grid{grid-template-columns:1fr 1fr;gap:16px 14px;padding:24px 0 16px}
-  .footer-grid>div:nth-child(1){grid-column:1/-1;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.1)}
+  .footer-grid>div:nth-child(1){grid-column:1/-1;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.12)}
   .footer-grid>div:nth-child(1) .footer-brand{margin-bottom:6px}
   .footer-grid>div:nth-child(1) .footer-brand img{width:38px;height:38px;border-radius:10px}
   .footer-grid>div:nth-child(1) p{margin:0;line-height:1.5}
   .site-footer h4{font-size:.92rem;margin-bottom:8px}
   .site-footer ul{gap:6px}
   .site-footer li,.site-footer a{line-height:1.4}
-  .footer-grid>div:nth-child(4){grid-column:1/-1;padding-top:12px;border-top:1px solid rgba(255,255,255,.1)}
+  .footer-grid>div:nth-child(4){grid-column:1/-1;padding-top:12px;border-top:1px solid rgba(255,255,255,.12)}
   .footer-grid>div:nth-child(4) h4{margin-bottom:10px}
   .footer-grid>div:nth-child(4) ul{display:flex;flex-wrap:wrap;gap:8px}
-  .footer-grid>div:nth-child(4) li{display:inline-flex;align-items:center;padding:5px 12px;border-radius:var(--radius-pill);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14)}
-  .footer-grid>div:nth-child(4) li a{color:#E1E9F0}
+  .footer-grid>div:nth-child(4) li{display:inline-flex;align-items:center;padding:5px 12px;border-radius:var(--radius-pill);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16)}
+  .footer-grid>div:nth-child(4) li a{color:#D5DEEB}
   .footer-bottom{padding:14px 0 24px;font-size:.75rem}
 }
 
 /* ---- Small phones ---- */
+@media(max-width:360px){
+  .product-actions .btn .btn-label{font-size:.76rem}
+}
 @media(max-width:650px){
   #backToTopBtn{bottom:20px;right:16px}
-}
-/* 1. إلغاء العرض الثابت (60px) للعمود الأول (التاريخ) وإعطائه مساحة كافية */
-.admin-table td:first-child,
-.admin-table th:first-child {
-  width: auto !important;
-  min-width: 120px !important;
-  white-space: nowrap !important; /* لمنع انكسار نص التاريخ والوقت وتداخله */
-}
-
-/* 2. زيادة المسافة (الفراغ الداخلي) بين جميع أعمدة الجدول لترتيب أريح للعين */
-.admin-table th, 
-.admin-table td {
-  padding-inline: 18px !important; 
 }

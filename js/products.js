@@ -36,7 +36,7 @@ function renderProductCard(product) {
   const outOfStock = !Store.isProductAvailable(product);
   const badges = [];
   
-  if (product.isOffer) badges.push('<span class="badge badge-offer" style="background:var(--danger); color:white;">عرض🔥</span>');
+  if (product.isOffer) badges.push('<span class="badge badge-offer">عرض🔥</span>');
   else if (product.isNew) badges.push('<span class="badge badge-new">جديد</span>');
   else if (product.featured) badges.push('<span class="badge badge-featured">مميز</span>');
   if (outOfStock) badges.push('<span class="badge badge-out-abs">غير متوفر</span>');
@@ -73,6 +73,8 @@ function renderProductCard(product) {
 
   const actionTitle = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات والمواصفات" : "أضف للسلة");
 
+  const actionLabel = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات" : "أضف للسلة");
+
   return (
     '<article class="product-card">' +
       '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="product-media">' +
@@ -90,6 +92,7 @@ function renderProductCard(product) {
               ' title="' + actionTitle + '"' +
               ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
               actionIcon +
+            '<span class="btn-label">' + actionLabel + "</span>" +
             "</button>" +
           "</div>" +
         "</div>" +

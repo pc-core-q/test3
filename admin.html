@@ -5,119 +5,13 @@
   <meta charset="UTF-8">
   <title>لوحة تحكم الأدمن | متجرك الإلكتروني</title>
   <link rel="icon" href="assets/logo/logo.png">
-  <link rel="stylesheet" href="css/style.css?v=48">
-  <link rel="stylesheet" href="css/refresh.css?v=48">
-<style>
-  /* === حماية ضد تمدد الصفحة وتنسيق المودال والأزرار === */
-  html, body {
-      overflow-x: hidden !important;
-      max-width: 100vw !important;
-  }
-  .admin-main, .admin-shell {
-      min-width: 0 !important;
-      width: 100% !important;
-      max-width: 100vw !important;
-  }
-  .admin-panel {
-      min-width: 0 !important;
-      width: 100% !important;
-  }
-  .modal-overlay {
-      display: none;
-      align-items: center !important;
-      justify-content: center !important;
-      padding: 15px !important;
-      position: fixed !important;
-      inset: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      box-sizing: border-box !important;
-      z-index: 10005 !important;
-  }
-  .modal-overlay.open {
-      display: flex !important;
-  }
-  .modal-card {
-      margin: 0 !important;
-      position: relative !important;
-      width: 100% !important;
-      max-width: 90vw !important;
-  }
-  .row-actions {
-      flex-wrap: nowrap !important;
-  }
-  .row-actions .btn-icon svg {
-      width: 20px !important;
-      height: 20px !important;
-      stroke-width: 2.2 !important;
-      flex-shrink: 0 !important;
-  }
-  .admin-logout svg {
-      width: 22px !important;
-      height: 22px !important;
-      flex-shrink: 0 !important;
-  }
-  .admin-logout a, .admin-logout button {
-      display: flex !important;
-      align-items: center !important;
-      gap: 10px !important;
-      text-align: right !important;
-  }
-
-  /* تنسيق وضبط حجم أيقونات الـ SVG البديلة في الجداول والمعاينة */
-  .admin-table td:first-child {
-      width: 60px !important;
-      min-width: 60px !important;
-  }
-  .admin-table-icon {
-      width: 48px !important;
-      height: 48px !important;
-      display: flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      background: var(--olive-50) !important;
-      border-radius: 9px !important;
-      color: var(--olive-700) !important;
-      flex-shrink: 0 !important;
-  }
-  .admin-table-icon svg {
-      width: 24px !important;
-      height: 24px !important;
-      max-width: 24px !important;
-      max-height: 24px !important;
-  }
-  .preview svg {
-      width: 38px !important;
-      height: 38px !important;
-      color: var(--ink-300) !important;
-  }
-
-  /* تنسيق القائمة الجانبية في الهاتف */
-  @media (max-width: 900px) {
-      .admin-sidebar {
-          position: fixed !important;
-          top: 0 !important;
-          bottom: 0 !important;
-          right: -300px !important;
-          width: 280px !important;
-          max-width: 85vw !important;
-          z-index: 10000 !important;
-          transition: right 0.3s ease-in-out !important;
-          box-shadow: -5px 0 25px rgba(0,0,0,0.3) !important;
-      }
-      .admin-sidebar.open {
-          right: 0 !important;
-      }
-      .admin-close-sidebar {
-          display: inline-flex !important;
-      }
-  }
-  @media (min-width: 901px) {
-      .admin-close-sidebar {
-          display: none !important;
-      }
-  }
-</style>
+    <!-- Arabic UI font (same on every page; non-blocking) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"></noscript>
+<link rel="stylesheet" href="css/style.css?v=51">
+  <link rel="stylesheet" href="css/refresh.css?v=51">
 </head>
 <body>
 

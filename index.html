@@ -34,14 +34,14 @@
   <link rel="preconnect" href="https://ik.imagekit.io" crossorigin>
 
   <!-- تحميل الخطوط في الخلفية دون تعطيل ظهور الصفحة للإنترنت الضعيف -->
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
   <noscript>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=El+Messiri:wght@600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
   </noscript>
 
-  <link rel="stylesheet" href="css/style.css?v=50">
-  <link rel="stylesheet" href="css/refresh.css?v=50">
+  <link rel="stylesheet" href="css/style.css?v=51">
+  <link rel="stylesheet" href="css/refresh.css?v=51">
 </head>
 <body>
 
@@ -114,7 +114,7 @@
     <div class="container">
       <div class="section-head">
         <div>
-          <h2 style="color: var(--danger);">🔥 عروض خاصة</h2>
+          <h2>🔥 عروض خاصة</h2>
           <p>تخفيضات وأسعار مميزة لفترة محدودة، لا تفوتها!</p>
         </div>
         <a href="products.html?filter=offer" class="btn btn-outline btn-sm">عرض الكل</a>
@@ -236,7 +236,7 @@
     const outOfStock = !Store.isProductAvailable(product);
     const badges = [];
     
-    if (product.isOffer) badges.push('<span class="badge badge-offer" style="background:var(--danger); color:white;">عرض🔥</span>');
+    if (product.isOffer) badges.push('<span class="badge badge-offer">عرض🔥</span>');
     else if (product.isNew) badges.push('<span class="badge badge-new">جديد</span>');
     else if (product.featured) badges.push('<span class="badge badge-featured">مميز</span>');
     if (outOfStock) badges.push('<span class="badge badge-out-abs">غير متوفر</span>');
@@ -272,6 +272,8 @@
 
     const actionTitle = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات والمواصفات" : "أضف للسلة");
 
+    const actionLabel = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات" : "أضف للسلة");
+
     return (
       '<article class="product-card">' +
         '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="product-media">' +
@@ -289,6 +291,7 @@
                 ' title="' + actionTitle + '"' +
                 ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
                 actionIcon +
+              '<span class="btn-label">' + actionLabel + "</span>" +
               "</button>" +
             "</div>" +
           "</div>" +
