@@ -67,113 +67,116 @@ async function initAdminPage() {
 /* ---------------------------------------------------------------------- */
 
 function wireExcelSync() {
-  const input = document.getElementById("excelSyncInput");
-  if (!input) return;
+  const fileInput = document.getElementById("excelSyncInput") || document.querySelector('input[type="file"][accept=".xlsx, .xls, .csv"]');
+  if (!fileInput) return;
 
-  input.addEventListener("change", function(e) {
+  fileInput.addEventListener("change", async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (typeof XLSX === "undefined") {
-      showToast("تعذر تحميل مكتبة قراءة الإكسل. يرجى التأكد من اتصال الإنترنت.", "error");
-      input.value = "";
-      return;
-    }
+    try {
+      // 1. قراءة الملف
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-    showToast("جاري قراءة ملف الإكسل ومزامنة البيانات...");
-
-    const reader = new FileReader();
-    reader.onload = async function(evt) {
-      try {
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, { type: "array" });
-        const firstSheetName = workbook.SheetNames[0];
-        const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheetName]);
-
-        if (!rows || !rows.length) {
-          showToast("الملف فارغ أو لا يحتوي على صفوف بيانات صالحة.", "error");
-          return;
-        }
-
-        const currentProducts = Store.getProducts();
-        let updatedCount = 0;
-
-        for (const row of rows) {
-          // قراءة الباركود بمختلف المسميات المحتملة
-          const barcode = String(
-            row["الباركود"] || row["باركود"] || row["كود المادة"] || row["كود"] || 
-            row["barcode"] || row["Barcode"] || row["BARCODE"] || 
-            row["sku"] || row["SKU"] || ""
-          ).trim();
-
-          // قراءة اسم المنتج كخيار بحث بديل في حال لم يتوفر الباركود
-          const productName = String(
-            row["اسم المنتج"] || row["الاسم"] || row["المادة"] || 
-            row["name"] || row["Name"] || ""
-          ).trim().toLowerCase();
-
-          // قراءة السعر والكمية
-          const rawPrice = row["السعر"] || row["سعر البيع"] || row["سعر المفرد"] || row["price"] || row["Price"];
-          const rawStock = row["الكمية"] || row["المخزون"] || row["الرصيد"] || row["stock"] || row["Stock"] || row["qty"] || row["Qty"];
-
-          const newPrice = Number(rawPrice);
-          const newStock = Number(rawStock);
-
-          let product = null;
-          if (barcode) {
-            product = currentProducts.find(p => String(p.barcode || p.sku || p.id).trim() === barcode);
-          }
-          if (!product && productName) {
-            product = currentProducts.find(p => (p.name || "").trim().toLowerCase() === productName);
-          }
-
-          if (product) {
-            let modified = false;
-            const patch = {};
-
-            if (!isNaN(newPrice) && newPrice > 0 && newPrice !== product.price) {
-              patch.price = newPrice;
-              product.price = newPrice;
-              modified = true;
-            }
-
-            if (!isNaN(newStock) && newStock >= 0 && newStock !== product.stock) {
-              patch.stock = newStock;
-              product.stock = newStock;
-              modified = true;
-            }
-
-            if (modified) {
-              await Store.updateProduct(product.id, patch);
-              updatedCount++;
-            }
-          }
-        }
-
-        if (updatedCount > 0) {
-          renderProductsTable();
-          renderStats();
-          showToast(`تم تحديث ${updatedCount} منتج بنجاح من ملف الإكسل!`, "success");
-        } else {
-          showToast("لم يتم العثور على منتجات مطابقة للباركود أو الأسماء بالملف.", "error");
-        }
-      } catch (err) {
-        console.error("Excel Sync Error:", err);
-        showToast("حدث خطأ أثناء معالجة ملف الإكسل.", "error");
-      } finally {
-        input.value = "";
+      if (rows.length === 0) {
+        alert("الملف فارغ أو لا يحتوي على بيانات مقروءة.");
+        return;
       }
-    };
 
-    reader.onerror = function() {
-      showToast("فشل فتح وقراءة الملف.", "error");
-      input.value = "";
-    };
+      // 2. سحب المنتجات الحالية من الكاش/Firebase
+      let products = Store.getProducts();
+      let updatedCount = 0;
+      let addedCount = 0;
 
-    reader.readAsArrayBuffer(file);
+      // دالة مساعدة للبحث عن العمود باختلاف المسميات (عربي/إنجليزي)
+      const getVal = (row, possibleKeys) => {
+        for (let key of possibleKeys) {
+          const foundKey = Object.keys(row).find(k => k.trim().toLowerCase() === key.toLowerCase());
+          if (foundKey && row[foundKey] !== "") return row[foundKey];
+        }
+        return null;
+      };
+
+      const barcodeKeys = ["الباركود", "باركود", "كود المادة", "كود", "barcode", "sku"];
+      const nameKeys = ["اسم المنتج", "الاسم", "المادة", "name"];
+      const priceKeys = ["السعر", "سعر البيع", "سعر المفرد", "price"];
+      const stockKeys = ["الكمية", "المخزون", "الرصيد", "stock", "qty"];
+
+      rows.forEach(row => {
+        const barcodeVal = getVal(row, barcodeKeys)?.toString().trim();
+        const nameVal = getVal(row, nameKeys)?.toString().trim();
+        let priceVal = parseFloat(getVal(row, priceKeys));
+        let stockVal = parseInt(getVal(row, stockKeys), 10);
+
+        if (isNaN(priceVal)) priceVal = 0;
+        if (isNaN(stockVal)) stockVal = 0;
+
+        // تجاوز الصف إذا لم يكن يحتوي على اسم أو باركود
+        if (!nameVal && !barcodeVal) return; 
+
+        // البحث عن المنتج هل هو موجود مسبقاً؟
+        let existingProduct = products.find(p => 
+          (barcodeVal && (p.barcode === barcodeVal || p.sku === barcodeVal || p.id === barcodeVal)) ||
+          (nameVal && p.name === nameVal)
+        );
+
+        if (existingProduct) {
+          // --- التحديث (المنتج موجود) ---
+          existingProduct.price = priceVal;
+          existingProduct.stock = stockVal;
+          if (barcodeVal && !existingProduct.barcode) {
+            existingProduct.barcode = barcodeVal;
+            existingProduct.sku = barcodeVal;
+          }
+          updatedCount++;
+        } else {
+          // --- الإضافة (منتج جديد كلياً) ---
+          if (!nameVal) return; // الاسم شرط أساسي لإضافة منتج جديد
+          
+          const newProduct = {
+            id: uid("prd"), // توليد معرّف فريد للمنتج
+            name: nameVal,
+            barcode: barcodeVal || "",
+            sku: barcodeVal || "",
+            price: priceVal,
+            stock: stockVal,
+            categoryId: "", // يُترك فارغاً مبدئياً ليقوم الأدمن بتصنيفه لاحقاً
+            available: true,
+            featured: false,
+            isNew: true, // تمييزه كمنتج جديد
+            isOffer: false,
+            image: "",
+            images: [],
+            colors: [],
+            sizes: [],
+            inventory: {}
+          };
+          products.push(newProduct);
+          addedCount++;
+        }
+      });
+
+      // 3. حفظ التعديلات في Firebase و LocalStorage
+      await Store.saveProducts(products);
+      
+      alert(`تمت العملية بنجاح!\n- تم تحديث سعر/كمية: ${updatedCount} منتج\n- تمت إضافة: ${addedCount} منتج جديد`);
+      
+      // 4. إعادة رسم جدول المنتجات في لوحة التحكم
+      if (typeof renderProductsTable === "function") {
+        renderProductsTable();
+      }
+      
+    } catch (error) {
+      console.error("Excel import error:", error);
+      alert("حدث خطأ أثناء قراءة الملف. تأكد من أن الملف بصيغة Excel صالحة وأن الأعمدة مطابقة.");
+    } finally {
+      fileInput.value = ""; // تصفير الحقل لاختيار نفس الملف مجدداً إن لزم الأمر
+    }
   });
 }
-
 /* ---------------------------------------------------------------------- */
 /* رفع الصور ومعالجتها الذكية بدقة عالية عبر ImageKit CDN                 */
 /* ---------------------------------------------------------------------- */
