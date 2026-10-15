@@ -14,7 +14,7 @@
 
 const META_CACHE_MS = 15 * 60 * 1000;     // كاش الأقسام/الإعدادات/الإعلانات (15 دقيقة لتوفير باندويث Firebase)
 const QUERY_CACHE_MS = 2 * 60 * 1000;     // كاش نتائج الاستعلامات داخل الجلسة
-const PRODUCT_CACHE_LIMIT = 400;          // أقصى عدد منتجات تُحفظ تلقائيًا في localStorage
+const PRODUCT_CACHE_LIMIT = 5000;          // أقصى عدد منتجات تُحفظ تلقائيًا في localStorage
 const FETCH_TIMEOUT_MS = 15000;
 
 const DB_KEYS = {
