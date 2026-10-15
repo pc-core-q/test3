@@ -25,18 +25,18 @@ const STORE_CONFIG = {
   currencySymbol: "د.ع",
 
   // === Firebase Web App / Authentication ===
-  firebaseApiKey: "AIzaSyBEvZ2CF94x5CUdV613OC_RKIpVb0Jp5Bs",
-  firebaseAuthDomain: "cosmatic-279e5.firebaseapp.com",
-  firebaseProjectId: "cosmatic-279e5",
-  firebaseStorageBucket: "cosmatic-279e5.firebasestorage.app",
-  firebaseMessagingSenderId: "984552787982",
-  firebaseAppId: "1:984552787982:web:f9c98de97e544d5535ec5f",
+  firebaseApiKey: "AIzaSyAnAHTDxGlWwBfe9Ta8ttQ8QZWLA5ZNYw8",
+  firebaseAuthDomain: "test3-2a6de.firebaseapp.com",
+  firebaseProjectId: "test3-2a6de",
+  firebaseStorageBucket: "test3-2a6de.firebasestorage.app",
+  firebaseMessagingSenderId: "44087547093",
+  firebaseAppId: "1:44087547093:web:91a03c47e7810869fbfe5c",
   
   // حسابات الأدمن المسموح لها بدخول لوحة التحكم
   adminEmails: ["a@email.com"],
 
   // === Firebase Realtime Database ===
-  firebaseDatabaseURL: "https://cosmatic-279e5-default-rtdb.europe-west1.firebasedatabase.app/",
+  firebaseDatabaseURL: "https://test3-2a6de-default-rtdb.europe-west1.firebasedatabase.app/",
 
   // === ImgBB (رفع الصور) ===
   imgbbApiKey: "820a1a52d1b835874a9200fe7d3bb6b3",
