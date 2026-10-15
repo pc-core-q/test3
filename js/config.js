@@ -56,5 +56,5 @@ const STORE_CONFIG = {
   algoliaThreshold: 350,
 
   // الحد الأقصى للمنتجات المستوردة من الإكسل
-  maxExcelImportCount: 50                         
+  maxExcelImportCount: 5000                       
 };
