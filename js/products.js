@@ -1,5 +1,6 @@
 /* ==========================================================================
-   products.js (نسخة Algolia السريعة + حفظ التمرير + نفاد الكمية الذكي + الصور التراكمية)
+   products.js (معمارية هجينة: محلي حتى 500 منتج / Algolia لما فوق 500 منتج)
+   + حفظ التمرير + نفاد الكمية الذكي + الصور التراكمية
    ========================================================================== */
 
 function productMediaHtml(product) {
@@ -136,7 +137,7 @@ function renderGridInto(containerId, products, emptyMessage) {
   }
 }
 
-// زيادة حجم الدفعة لتوفير 50% من استدعاءات Algolia
+// حجم الدفعة للترقيم
 const SHOP_PAGE_SIZE = 24;
 const shopState = {
   search: "", categoryId: "all", sort: "default", filterMode: "",
@@ -211,22 +212,25 @@ function ensureShopPaginationUI() {
   grid.parentNode.insertBefore(wrap, grid.nextSibling);
 }
 
-// دالة جلب المنتجات عبر Algolia مع كاش الجلسة
+// دالة جلب المنتجات: هجينة ذكية تقرر بين المحلي وAlgolia حسب حجم المتجر
 async function queryAlgoliaShop(pageToFetch) {
   const cfg = typeof STORE_CONFIG !== "undefined" ? STORE_CONFIG : {};
   const isAlgoliaReady = cfg.algoliaAppId && !cfg.algoliaAppId.startsWith("YOUR_") && cfg.algoliaSearchKey;
 
-  // إذا لم يتم ضبط مفاتيح ألكوليا بعد، يتم التحويل للنظام الاحتياطي تلقائياً
-  if (!isAlgoliaReady) {
+  // فحص عدد المنتجات المسجلة في المتجر
+  const totalProducts = (Store.getProducts() || []).length;
+  const ALGOLIA_THRESHOLD = 500; // الحد الفاصل: أقل من 500 محلي مجاني، أكثر من 500 سيرفر Algolia
+
+  // إذا لم تكن مفاتيح ألكوليا مفعلة أو كانت المنتجات 500 أو أقل، نعتمد على الدالة المحلية السريعة
+  if (!isAlgoliaReady || totalProducts <= ALGOLIA_THRESHOLD) {
     return queryFallbackStore(pageToFetch);
   }
 
-  // تحديد اسم الفهرس بناءً على الترتيب المطلوب
+  // --- في حال كان المتجر كبيراً (> 500 منتج) ومفاتيح Algolia جاهزة ---
   let targetIndex = cfg.algoliaIndexName || "products";
   if (shopState.sort === "price-asc") targetIndex += "_price_asc";
   else if (shopState.sort === "price-desc") targetIndex += "_price_desc";
 
-  // بناء الفلاتر
   const filters = [];
   filters.push("available:true");
 
@@ -292,12 +296,20 @@ async function queryAlgoliaShop(pageToFetch) {
   return result;
 }
 
-// دالة احتياطية تعمل على Firebase في حال لم يتم إدخال مفاتيح Algolia
+// دالة الفلترة والترتيب المحلي الفوري (للمتاجر حتى 500 منتج أو كبديل احتياطي)
 async function queryFallbackStore(pageToFetch) {
   let pool = Store.getProducts();
   if (!pool || pool.length < 20) {
-    await Store.loadProductsPage(60, null);
-    pool = Store.getProducts();
+    if (typeof Store.loadAllProductsFromFirebase === "function") {
+      try {
+        pool = await Store.loadAllProductsFromFirebase();
+      } catch (e) {
+        pool = Store.getProducts() || [];
+      }
+    } else {
+      await Store.loadProductsPage(100, null);
+      pool = Store.getProducts() || [];
+    }
   }
 
   let list = pool.filter(p => p && Store.isProductAvailable(p));
@@ -765,7 +777,6 @@ async function initProductDetailPage() {
       }
     });
 
-    // إذا كان المقاس المحدد حالياً قد نفد، يتم اختيار أول مقاس متاح تلقائياً
     if (!hasAvailableSelected) {
       const firstAvailableBtn = document.querySelector("#sizeButtons .size-btn:not(.is-out-of-stock)");
       if (firstAvailableBtn) {
@@ -908,7 +919,6 @@ async function initProductDetailPage() {
     });
   }
 
-  // التفعيل الأولي
   refreshAvailabilityUI();
 
   const qtyMinus = document.getElementById("qtyMinus");
