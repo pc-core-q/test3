@@ -142,6 +142,14 @@ const shopState = {
   pagination: { token: 0, loading: false, done: false, cursors: {}, products: [] }
 };
 
+function shopCategoryIds(categoryId) {
+  const ids = [categoryId];
+  Store.getCategories().forEach(function (c) {
+    if (c.parentId === categoryId && ids.indexOf(c.id) === -1) ids.push(c.id);
+  });
+  return ids;
+}
+
 function resetShopPagination() {
   shopState.pagination = {
     token: shopState.pagination.token + 1,
@@ -333,9 +341,11 @@ async function fetchNextShopBatch(token) {
     } 
     else if (shopState.categoryId !== "all") {
       const sourceKey = "cat:" + shopState.categoryId;
+      page.fetchedIds = shopCategoryIds(shopState.categoryId).join(",");
       const cursor = page.cursors[sourceKey] || null;
 
-      const result = await Store.loadProductsPageByCategory(shopState.categoryId, SHOP_PAGE_SIZE, cursor);
+      // قسم أب له فروع ← نجلب منتجات الأب وكل فروعه معًا (المنتجات تُخزَّن بمعرّف الفرع غالبًا)
+      const result = await Store.loadProductsPageByCategories(shopCategoryIds(shopState.categoryId), SHOP_PAGE_SIZE, cursor);
       if (token !== page.token) return;
       added = result.products;
       page.cursors[sourceKey] = result.nextCursor;
@@ -868,6 +878,11 @@ document.addEventListener("store:synced", function () {
   if (document.getElementById("shopGrid")) {
     renderCategoryFilterPanel();
     renderSubCategoryChips();
+    // أول زيارة: الأقسام وصلت بعد بدء الجلب → قد يكون القسم الأب جُلب بدون فروعه، فنعيد الجلب مرة
+    if (shopState.categoryId !== "all" && !shopState.filterMode && shopCategoryIds(shopState.categoryId).length > 1 &&
+        shopState.pagination.fetchedIds !== shopCategoryIds(shopState.categoryId).join(",")) {
+      renderShopResults({ reset: true });
+    }
   }
   const detail = document.getElementById("productDetail");
   if (detail) {

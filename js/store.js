@@ -304,6 +304,18 @@ async function fetchProductsPageByCategoryFromFirebase(categoryId, pageSize, cur
   return fetchProductsPageByFieldFromFirebase("categoryId", categoryId, pageSize, cursorKey);
 }
 
+/* عدة أقسام معًا (القسم الأب + فروعه) — الطلبات متوازية، والدمج بترتيب المفتاح (المفاتيح فريدة عبر كل المنتجات) */
+async function fetchProductsPageByCategoriesFromFirebase(categoryIds, pageSize, cursorKey) {
+  if (!firebaseEnabled || !categoryIds || !categoryIds.length) return { products: [], nextCursor: null, done: true };
+  const lists = await Promise.all(categoryIds.map(function (id) {
+    return cursorKey ? matchAll("categoryId", id) : matchEntries("categoryId", id, pageSize + 1);
+  }));
+  const byKey = new Map();
+  lists.forEach(function (entries) { entries.forEach(function (e) { byKey.set(e[0], e); }); });
+  const merged = Array.from(byKey.values()).sort(function (a, b) { return compareKeys(a[0], b[0]); });
+  return buildPage(merged, pageSize, cursorKey);
+}
+
 async function fetchProductsPageByFieldFromFirebase(field, value, pageSize, cursorKey) {
   if (!firebaseEnabled) return { products: [], nextCursor: null, done: true };
   const entries = cursorKey
@@ -568,6 +580,21 @@ const Store = {
       return this._localPage(all, pageSize, cursorKey);
     }
     const result = await fetchProductsPageByCategoryFromFirebase(categoryId, pageSize, cursorKey);
+    this._cacheLoadedProducts(result.products);
+    return result;
+  },
+
+  /* قسم أب + كل فروعه: ids = [parentId, ...childIds] */
+  async loadProductsPageByCategories(ids, pageSize, cursorKey) {
+    pageSize = Number(pageSize) || 20;
+    ids = (ids || []).filter(Boolean);
+    if (!ids.length) return { products: [], nextCursor: null, done: true };
+    if (ids.length === 1) return this.loadProductsPageByCategory(ids[0], pageSize, cursorKey);
+    if (!firebaseEnabled) {
+      const all = this.getProducts().filter(function (p) { return ids.indexOf(p.categoryId) !== -1; });
+      return this._localPage(all, pageSize, cursorKey);
+    }
+    const result = await fetchProductsPageByCategoriesFromFirebase(ids, pageSize, cursorKey);
     this._cacheLoadedProducts(result.products);
     return result;
   },
