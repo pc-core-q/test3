@@ -203,7 +203,7 @@ function wireExcelSync() {
       }
 
       // 2. تطبيق سقف الـ 50 منتجاً لحماية الباقة
-      const MAX_IMPORT = (typeof STORE_CONFIG !== "undefined" && STORE_CONFIG.maxExcelImportCount) || 100;
+      const MAX_IMPORT = (typeof STORE_CONFIG !== "undefined" && STORE_CONFIG.maxExcelImportCount) || 1000;
       if (validRows.length > MAX_IMPORT) {
         alert(`الملف يحتوي على (${validRows.length}) منتج متوفر.\nالحد الأقصى المسموح باستيراده دفعة واحدة هو (${MAX_IMPORT}) منتج لحماية الحساب.\nيرجى تصفية ملف الإكسل وتصدير المنتجات المطلوبة فقط.`);
         return;
