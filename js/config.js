@@ -51,5 +51,5 @@ const STORE_CONFIG = {
   algoliaIndexName: "products",
 
   // === ضوابط المنتجات والاستيراد ===
-  maxExcelImportCount: 100                          // الحد الأقصى للمنتجات المستوردة من الإكسل
+  maxExcelImportCount: 1000                          // الحد الأقصى للمنتجات المستوردة من الإكسل
 };
