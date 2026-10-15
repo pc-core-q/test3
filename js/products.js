@@ -219,7 +219,7 @@ async function queryAlgoliaShop(pageToFetch) {
 
   // فحص عدد المنتجات المسجلة في المتجر
   const totalProducts = (Store.getProducts() || []).length;
-  const ALGOLIA_THRESHOLD = 500; // الحد الفاصل: أقل من 500 محلي مجاني، أكثر من 500 سيرفر Algolia
+  const ALGOLIA_THRESHOLD = 400; // الحد الفاصل: أقل من 500 محلي مجاني، أكثر من 500 سيرفر Algolia
 
   // إذا لم تكن مفاتيح ألكوليا مفعلة أو كانت المنتجات 500 أو أقل، نعتمد على الدالة المحلية السريعة
   if (!isAlgoliaReady || totalProducts <= ALGOLIA_THRESHOLD) {
