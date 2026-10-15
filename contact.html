@@ -7,12 +7,15 @@
 <title>تواصل معنا | متجرك الإلكتروني</title>
 <link rel="icon" href="assets/logo/logo.png">
   <!-- Arabic UI font (same on every page; non-blocking) -->
+  <!-- عدّل رابط قاعدة البيانات لكل عميل ليطابق config.js -->
+  <link rel="preconnect" href="https://test3-2a6de-default-rtdb.europe-west1.firebasedatabase.app" crossorigin>
+  <link rel="preconnect" href="https://ik.imagekit.io" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"></noscript>
-<link rel="stylesheet" href="css/style.css?v=51">
-  <link rel="stylesheet" href="css/refresh.css?v=51">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&family=Tajawal:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&family=Tajawal:wght@400;500;700&display=swap"></noscript>
+<link rel="stylesheet" href="css/style.css?v=60">
+  <link rel="stylesheet" href="css/refresh.css?v=60">
 </head>
 <body>
 
@@ -45,28 +48,28 @@
 
 <div id="site-footer"></div>
 
-<script src="js/config.js?v=42"></script>
-<script src="js/icons.js?v=42"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="js/store.js?v=42"></script>
-<script src="js/whatsapp.js?v=42"></script>
-<script src="js/app.js?v=42"></script>
+<!-- سكربتات مؤجلة (defer): لا تحجب الرسم. القراءة من Firebase عبر REST داخل store.js (بدون SDK) -->
+<script src="js/config.js?v=60" defer></script>
+<script src="js/icons.js?v=60" defer></script>
+<script src="js/store.js?v=60" defer></script>
+<script src="js/whatsapp.js?v=60" defer></script>
+<script src="js/app.js?v=60" defer></script>
 <script>
-  document.addEventListener("DOMContentLoaded", function () {
+  /* تُستدعى عند التحميل وعند وصول الإعدادات من Firebase (كانت تعرض "لم يتم إعداد بيانات التواصل" لأول زائر ولا تتحدّث) */
+  function renderContactPage() {
     const s = Store.getSettings();
 
     const cards = [];
     if (s.whatsapp) cards.push({ icon: "whatsapp", title: "واتساب", desc: "أسرع طريقة للطلب والاستفسار", link: "https://wa.me/" + whatsappDigitsOnly(s.whatsapp), label: "راسلنا الآن" });
-    if (s.instagram) cards.push({ icon: "instagram", title: "انستغرام", desc: "تابع جديدنا وعروضنا", link: s.instagram, label: "زيارة الحساب" });
+    if (s.instagram) cards.push({ icon: "instagram", title: "انستغرام", desc: "تابع جديدنا وعروضنا", link: safeUrl(s.instagram), label: "زيارة الحساب" });
     if (s.tiktok) cards.push({
       customIcon: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 448 512" fill="currentColor"><path d="M448,209.91a210.06,210.06,0,0,1-122.77-39.25V349.38A162.55,162.55,0,1,1,185,188.31V278.2a74.62,74.62,0,1,0,52.23,71.18V0l88,0a121.18,121.18,0,0,0,1.86,22.17h0A122.18,122.18,0,0,0,381,102.39a121.43,121.43,0,0,0,67,20.14Z"/></svg>',
       title: "تيك توك",
       desc: "شاهد مقاطعنا وتفاعل معنا",
-      link: s.tiktok,
+      link: safeUrl(s.tiktok),
       label: "تابعنا"
     });
-    if (s.phone) cards.push({ icon: "phone", title: "الهاتف", desc: s.phone, link: "tel:" + s.phone, label: "اتصال مباشر" });
+    if (s.phone) cards.push({ icon: "phone", title: "الهاتف", desc: s.phone, link: "tel:" + String(s.phone).replace(/[^0-9+]/g, ""), label: "اتصال مباشر" });
     if (s.address) cards.push({ icon: "home", title: "الموقع", desc: s.address, link: null, label: null });
 
     document.getElementById("contactCards").innerHTML = cards.length ? cards.map(function (c) {
@@ -85,7 +88,9 @@
     if (s.workingHours) extraInfoHtml += "<span><strong>ساعات العمل:</strong> " + escapeHtml(s.workingHours) + "</span>";
     if (s.deliveryInfo) extraInfoHtml += "<span><strong>معلومات التوصيل:</strong> " + escapeHtml(s.deliveryInfo) + "</span>";
     document.getElementById("extraInfo").innerHTML = extraInfoHtml || "<span>لم يتم إضافة معلومات إضافية بعد.</span>";
-  });
+  }
+  document.addEventListener("DOMContentLoaded", renderContactPage);
+  document.addEventListener("store:synced", renderContactPage);
 </script>
 </body>
 </html>

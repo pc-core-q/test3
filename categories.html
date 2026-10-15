@@ -6,12 +6,15 @@
   <title>الأقسام | متجرك الإلكتروني</title>
   <link rel="icon" href="assets/logo/logo.png">
     <!-- Arabic UI font (same on every page; non-blocking) -->
+  <!-- عدّل رابط قاعدة البيانات لكل عميل ليطابق config.js -->
+  <link rel="preconnect" href="https://test3-2a6de-default-rtdb.europe-west1.firebasedatabase.app" crossorigin>
+  <link rel="preconnect" href="https://ik.imagekit.io" crossorigin>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap"></noscript>
-<link rel="stylesheet" href="css/style.css?v=51">
-  <link rel="stylesheet" href="css/refresh.css?v=51">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&family=Tajawal:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&family=Tajawal:wght@400;500;700&display=swap"></noscript>
+<link rel="stylesheet" href="css/style.css?v=60">
+  <link rel="stylesheet" href="css/refresh.css?v=60">
 </head>
 <body>
 
@@ -28,8 +31,9 @@
 
   <section class="section" style="padding-top: 25px;">
     <div class="container">
-      <div class="category-grid" id="categoriesGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
+      <div class="category-grid" id="categoriesGrid" aria-busy="true" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;">
         <!-- سيتم رسم الأقسام برمجياً هنا -->
+        <div class="cat-main-card skeleton-card" aria-hidden="true" style="min-height:150px"></div><div class="cat-main-card skeleton-card" aria-hidden="true" style="min-height:150px"></div><div class="cat-main-card skeleton-card" aria-hidden="true" style="min-height:150px"></div><div class="cat-main-card skeleton-card" aria-hidden="true" style="min-height:150px"></div>
       </div>
     </div>
   </section>
@@ -37,54 +41,61 @@
 
 <div id="site-footer"></div>
 
-<script src="js/config.js?v=42"></script>
-<script src="js/icons.js?v=42"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="js/store.js?v=42"></script>
-<script src="js/whatsapp.js?v=42"></script>
-<script src="js/app.js?v=42"></script>
+<!-- سكربتات مؤجلة (defer): لا تحجب الرسم. القراءة من Firebase عبر REST داخل store.js (بدون SDK) -->
+<script src="js/config.js?v=60" defer></script>
+<script src="js/icons.js?v=60" defer></script>
+<script src="js/store.js?v=60" defer></script>
+<script src="js/whatsapp.js?v=60" defer></script>
+<script src="js/app.js?v=60" defer></script>
 <script>
+  var catPageSig = null;
+
   function renderAllCategoriesPage() {
-    const grid = document.getElementById("categoriesGrid");
+    var grid = document.getElementById("categoriesGrid");
     if (!grid) return;
 
-    const allCategories = Store.getCategories();
-    const allProducts = Store.getProducts();
-    const mainCategories = allCategories.filter(c => !c.parentId);
+    var allCategories = Store.getCategories();
+    var mainCategories = allCategories.filter(function (c) { return !c.parentId; });
+
+    // أول زيارة: لا نعرض "لا توجد أقسام" قبل أن تصل أول مزامنة (نُبقي الـ skeleton)
+    if (!mainCategories.length && !LS.get("last_meta_pull_time")) return;
+
+    var sig = JSON.stringify(allCategories.map(function (c) { return [c.id, c.name, c.parentId, c.image, c.icon]; }));
+    if (sig === catPageSig) return;
+    catPageSig = sig;
+    grid.removeAttribute("aria-busy");
 
     if (mainCategories.length === 0) {
       grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">' + iconSvg("box") + '<p>لا توجد أقسام مضافة بعد.</p></div>';
       return;
     }
 
-    grid.innerHTML = mainCategories.map(main => {
-      const subCats = allCategories.filter(c => c.parentId === main.id);
-      const mainProdCount = allProducts.filter(p => p.categoryId === main.id || subCats.some(s => s.id === p.categoryId)).length;
+    grid.innerHTML = mainCategories.map(function (main) {
+      var subCats = allCategories.filter(function (c) { return c.parentId === main.id; });
 
-      let media = iconSvg(main.icon || "box");
+      var media = iconSvg(main.icon || "box");
       if (main.image) {
-        const optimizedImg = main.image.replace(/tr:[^/]+/g, "tr:w-700,q-85");
-        media = '<img src="' + escapeHtml(optimizedImg) + '" alt="' + escapeHtml(main.name) + '" loading="lazy" decoding="async">';
+        media = '<img src="' + escapeHtml(window.getIkUrl(main.image, 700, 80)) + '" alt="' + escapeHtml(main.name) + '" width="700" height="700" loading="lazy" decoding="async">';
       }
 
-      let subHtml = '';
+      var subHtml = '';
       if (subCats.length > 0) {
         subHtml = '<div class="cat-sub-chips">';
         subHtml += '<a href="products.html?cat=' + encodeURIComponent(main.id) + '" class="cat-sub-chip" style="background:var(--olive-100);color:var(--olive-800);">عرض الكل</a>';
-        subCats.forEach(sub => {
+        subCats.forEach(function (sub) {
           subHtml += '<a href="products.html?cat=' + encodeURIComponent(sub.id) + '" class="cat-sub-chip">' + escapeHtml(sub.name) + '</a>';
         });
         subHtml += '</div>';
       }
 
+      // ملاحظة: لا نعرض "عدد المنتجات" لأن المتجر يحمّل المنتجات على دفعات (العدد المحلي غير دقيق وكان يظهر 0)
       return (
         '<div class="cat-main-card">' +
           '<a href="products.html?cat=' + encodeURIComponent(main.id) + '" class="cat-card-header">' +
             '<div class="cat-card-img">' + media + '</div>' +
             '<div class="cat-card-title">' +
               '<h3>' + escapeHtml(main.name) + '</h3>' +
-              '<span>' + mainProdCount + ' منتج متوفر</span>' +
+              '<span>تصفح المنتجات ←</span>' +
             '</div>' +
           '</a>' +
           subHtml +
@@ -95,6 +106,13 @@
 
   document.addEventListener("DOMContentLoaded", renderAllCategoriesPage);
   document.addEventListener("store:synced", renderAllCategoriesPage);
+  document.addEventListener("store:sync-error", function () {
+    var grid = document.getElementById("categoriesGrid");
+    if (grid && grid.getAttribute("aria-busy") === "true") {
+      grid.removeAttribute("aria-busy");
+      grid.innerHTML = '<div class="load-error"><p>تعذّر تحميل الأقسام. تحقق من الاتصال بالإنترنت.</p><button type="button" class="btn btn-outline btn-sm" onclick="location.reload()">إعادة المحاولة</button></div>';
+    }
+  });
 </script>
 </body>
 </html>

@@ -28,7 +28,7 @@ async function initAdminPage() {
   }
 
   // لوحة الأدمن تحتاج القائمة الكاملة، بينما المتجر العام لا يسحبها.
-  await Store.loadAllProductsFromFirebase();
+  await Store.loadAllProductsFromFirebase(true); // دائمًا قائمة كاملة وحديثة قبل أي حفظ (saveProducts يكتب القائمة كلها)
   // جلب أحدث الطلبات من السيرفر فور فتح لوحة التحكم
   await Store.loadOrdersFromFirebase();
 

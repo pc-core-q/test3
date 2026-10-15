@@ -27,26 +27,53 @@
   <meta name="twitter:description" content="تصفّح تشكيلة واسعة من المنتجات واطلب مباشرة عبر واتساب بسهولة وسرعة.">
   <meta name="twitter:image" content="https://test3-9ri.pages.dev/assets/logo/logo.png">
 
-  <!-- مصافحة مسبقة سريعة للخوادم الخارجية لمنع التأخير -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- مصافحة مسبقة للخوادم الخارجية (عدّل رابط قاعدة البيانات لكل عميل ليطابق config.js) -->
   <link rel="preconnect" href="https://test3-2a6de-default-rtdb.europe-west1.firebasedatabase.app" crossorigin>
   <link rel="preconnect" href="https://ik.imagekit.io" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
-  <!-- تحميل الخطوط في الخلفية دون تعطيل ظهور الصفحة للإنترنت الضعيف -->
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+  <!-- الخطوط لا تحجب الرسم: تُحمَّل بالخلفية ثم تُفعَّل -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&family=Tajawal:wght@400;500;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&family=Tajawal:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
   <noscript>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700&family=Tajawal:wght@400;500;700&display=swap">
   </noscript>
 
-  <link rel="stylesheet" href="css/style.css?v=51">
-  <link rel="stylesheet" href="css/refresh.css?v=51">
+  <link rel="stylesheet" href="css/style.css?v=60">
+  <link rel="stylesheet" href="css/refresh.css?v=60">
+
+  <!-- config.js صغير (2KB) ومن نفس النطاق: نحمّله مبكرًا ليبدأ جلب البيانات بالتوازي مع تحميل CSS/JS -->
+  <script src="js/config.js?v=60"></script>
+  <script>
+  /* بدء جلب بيانات الرئيسية فورًا (قبل تحميل store.js). store.js يلتقط النتائج عبر window.__early.
+     صيغة الروابط يجب أن تطابق productQuery() في store.js حرفيًا. */
+  (function () {
+    try {
+      if (typeof STORE_CONFIG === "undefined" || !window.fetch) return;
+      var base = String(STORE_CONFIG.firebaseDatabaseURL || "").trim().replace(/\/+$/, "");
+      if (!base) return;
+      var E = window.__early = {};
+      function go(path, qs) {
+        var url = base + "/" + path + ".json" + (qs || "");
+        E[url] = fetch(url).then(function (r) { return r.ok ? r.json() : undefined; }).catch(function () { return undefined; });
+      }
+      function q(f, v, l) {
+        return "?orderBy=" + encodeURIComponent(JSON.stringify(f)) + "&equalTo=" + encodeURIComponent(JSON.stringify(v)) + "&limitToFirst=" + l;
+      }
+      var last = +localStorage.getItem("last_meta_pull_time") || 0;
+      if (Date.now() - last >= 900000) { go("ws_categories"); go("ws_settings"); go("ws_ads"); }
+      go("ws_products", q("featured", true, 5));
+      go("ws_products", q("isOffer", true, 5));
+      go("ws_products", q("isNew", true, 5));
+    } catch (e) {}
+  })();
+  </script>
+
+  <!-- تحميل مسبق للصفحات التالية عند اقتراب المستخدم منها -->
+  <script type="speculationrules">{"prefetch":[{"where":{"href_matches":"/*"},"eagerness":"moderate"}]}</script>
 </head>
 <body>
-
-<!-- Sidebar overlay -->
-<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <!-- الهيدر يتم توليده عبر app.js -->
 <div id="site-header" data-active="home"></div>
@@ -70,7 +97,7 @@
       </div>
       <div class="hero-art" id="heroPromoContainer">
         <!-- صورة افتراضية تظهر فوراً قبل تحميل السلايدر -->
-        <div class="hero-art-default"><img src="assets/logo/logo.png" alt="شعار المتجر"></div>
+        <div class="hero-art-default"><img src="assets/logo/logo.png" alt="شعار المتجر" width="160" height="160" fetchpriority="high" decoding="async"></div>
       </div>
     </div>
   </section>
@@ -86,7 +113,7 @@
         </div>
         <a href="categories.html" class="btn btn-outline btn-sm">عرض كل الأقسام ←</a>
       </div>
-      <div class="cat-scroller" id="homeCategories"></div>
+      <div class="cat-scroller" id="homeCategories" aria-busy="true"><div class="cat-chip skeleton-chip" aria-hidden="true"><span class="cat-icon"></span><span class="name"></span></div><div class="cat-chip skeleton-chip" aria-hidden="true"><span class="cat-icon"></span><span class="name"></span></div><div class="cat-chip skeleton-chip" aria-hidden="true"><span class="cat-icon"></span><span class="name"></span></div><div class="cat-chip skeleton-chip" aria-hidden="true"><span class="cat-icon"></span><span class="name"></span></div><div class="cat-chip skeleton-chip" aria-hidden="true"><span class="cat-icon"></span><span class="name"></span></div></div>
     </div>
   </section>
 
@@ -101,10 +128,10 @@
         <a href="products.html?filter=featured" class="btn btn-outline btn-sm">عرض الكل</a>
       </div>
       <div class="product-grid" id="featuredGrid">
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
       </div>
     </div>
   </section>
@@ -120,10 +147,10 @@
         <a href="products.html?filter=offer" class="btn btn-outline btn-sm">عرض الكل</a>
       </div>
       <div class="product-grid" id="offerGrid">
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
       </div>
     </div>
   </section>
@@ -139,10 +166,10 @@
         <a href="products.html?filter=new" class="btn btn-outline btn-sm">عرض الكل</a>
       </div>
       <div class="product-grid" id="newGrid">
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
-        <div class="skeleton-card"><div class="skeleton-box skeleton-img"></div><div class="skeleton-box skeleton-text"></div><div class="skeleton-box skeleton-price"></div></div>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
+        <article class="product-card skeleton-card" aria-hidden="true"></article>
       </div>
     </div>
   </section>
@@ -158,22 +185,22 @@
       </div>
       <div class="feature-grid">
         <div class="feature-card">
-          <div class="icon">__ICON_TRUCK__</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 6h11v10h-11z"/><path d="M13.5 10h4l3 3v3h-7z"/><circle cx="6.5" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg></div>
           <h3>توصيل سريع وموثوق</h3>
           <p>توصيل سريع داخل المدينة، وخلال أيام قليلة لباقي المناطق.</p>
         </div>
         <div class="feature-card">
-          <div class="icon">__ICON_SHIELD__</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3.5 19 6v6c0 5-3 7.8-7 8.5-4-.7-7-3.5-7-8.5V6l7-2.5Z"/><path d="m9 12 2 2 4-4.2"/></svg></div>
           <h3>منتجات أصلية</h3>
           <p>نختار منتجاتنا بعناية من مصادر موثوقة لضمان الجودة والسلامة.</p>
         </div>
         <div class="feature-card">
-          <div class="icon">__ICON_WHATSAPP__</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2c-5.5 0-10 4.5-10 10 0 1.8.47 3.45 1.29 4.9L2 22l5.25-1.38A9.94 9.94 0 0 0 12.04 22c5.5 0 10-4.5 10-10s-4.5-10-10-10Zm5.8 14.2c-.24.68-1.4 1.3-1.94 1.38-.5.08-1.13.11-1.82-.11-.42-.13-.96-.31-1.65-.6-2.9-1.25-4.8-4.16-4.94-4.35-.14-.19-1.18-1.57-1.18-3s.75-2.13 1.02-2.42c.27-.29.58-.36.78-.36h.56c.18 0 .42-.07.65.5.24.58.8 2 .87 2.15.07.15.12.32.02.51-.1.19-.15.31-.3.48-.15.17-.31.38-.44.51-.15.15-.3.31-.13.6.17.29.76 1.25 1.63 2.02 1.12.99 2.06 1.3 2.35 1.45.29.15.46.13.63-.08.17-.21.72-.84.92-1.13.19-.29.39-.24.65-.14.27.1 1.7.8 1.99.95.29.15.48.22.55.34.07.13.07.71-.17 1.4Z"/></svg></div>
           <h3>طلب سهل عبر واتساب</h3>
           <p>لا تعقيد في الدفع الإلكتروني — أرسل طلبك وتواصل مباشرة معنا.</p>
         </div>
         <div class="feature-card">
-          <div class="icon">__ICON_HEART__</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 20s-7.3-4.6-9.4-9.2C1.2 7.6 3 4.5 6.2 4.1c2-.3 3.8.7 5.8 3 2-2.3 3.8-3.3 5.8-3 3.2.4 5 3.5 3.6 6.7C19.3 15.4 12 20 12 20Z"/></svg></div>
           <h3>دعم يهتم بك</h3>
           <p>فريقنا جاهز للمساعدة في اختيار المنتج الأنسب لك.</p>
         </div>
@@ -197,101 +224,91 @@
   
 <div id="site-footer"></div>
 
-<!-- تحميل السكربتات بالتوازي دون حجب الواجهة باستخدام defer -->
-<script src="js/config.js?v=50" defer></script>
-<script src="js/icons.js?v=50" defer></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" defer></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js" defer></script>
-<script src="js/store.js?v=50" defer></script>
-<script src="js/whatsapp.js?v=50" defer></script>
-<script src="js/app.js?v=50" defer></script>
+<!-- كل السكربتات مؤجلة (defer) → لا تحجب الرسم. لا حاجة لـ Firebase SDK في المتجر (القراءة عبر REST) -->
+<script src="js/icons.js?v=60" defer></script>
+<script src="js/store.js?v=60" defer></script>
+<script src="js/whatsapp.js?v=60" defer></script>
+<script src="js/app.js?v=60" defer></script>
 <script>
-  let slideInterval = null;
+/* ==========================================================================
+   منطق الصفحة الرئيسية
+   - عرض فوري من الكاش ثم تحديث بالخلفية (stale-while-revalidate)
+   - الأقسام الثلاثة تُجلب بالتوازي وكل قسم يظهر فور وصول بياناته
+   - لا يُعاد رسم أي جزء إلا إذا تغيّرت بياناته (لا وميض ولا تكرار تحميل صور)
+   ========================================================================== */
+  var slideInterval = null;
+  var HOME_SECTIONS = [
+    { grid: "featuredGrid", field: "featured", cache: "featured", empty: "لا توجد منتجات مميزة حاليًا." },
+    { grid: "offerGrid",    field: "isOffer",  cache: "offers",   empty: "لا توجد عروض وتخفيضات حاليًا." },
+    { grid: "newGrid",      field: "isNew",    cache: "new",      empty: "لا توجد منتجات جديدة حاليًا." }
+  ];
+  var IMG_FALLBACK = "https://placehold.co/600x600/FAF0EE/5B4146?text=صورة+تجريبية";
 
   function productMediaHtml(product) {
     if (product.image) {
-      const imgUrl = (typeof window.getIkUrl === 'function')
-        ? window.getIkUrl(product.image, 700, 85)
-        : product.image;
+      var imgUrl = window.getIkUrl(product.image, 600, 80);
       return '<img src="' + escapeHtml(imgUrl) + '" ' +
              'alt="' + escapeHtml(product.name || "") + '" ' +
-             'class="product-media-img" loading="lazy" decoding="async" ' +
-             'onerror="this.onerror=null; this.src=\'https://placehold.co/600x600/f2f4f9/16233f?text=صورة+تجريبية\';">';
+             'class="product-media-img img-fade" width="600" height="600" loading="lazy" decoding="async" ' +
+             'onload="this.classList.add(\'is-loaded\')" ' +
+             'onerror="this.onerror=null; this.classList.add(\'is-loaded\'); this.src=\'' + IMG_FALLBACK + '\';">';
     }
-    const cat = Store.getCategories().find(function (c) { return c.id === product.categoryId; });
-    const key = cat ? cat.icon : "box";
-    return '<div class="placeholder-icon">' + iconSvg(key) + "</div>";
+    var cat = Store.getCategories().find(function (c) { return c.id === product.categoryId; });
+    return '<div class="placeholder-icon">' + iconSvg(cat ? cat.icon : "box") + "</div>";
   }
 
   function productHasOptions(product) {
     if (!product) return false;
-    const hasColors = Array.isArray(product.colors) && product.colors.length > 0;
-    const hasSizes = Array.isArray(product.sizes) && product.sizes.length > 0;
-    const hasVariants = Array.isArray(product.variants) && product.variants.length > 0;
-    const hasMatrix = typeof Store !== "undefined" && typeof Store.hasVariantMatrix === "function" && Store.hasVariantMatrix(product);
-    return hasColors || hasSizes || hasVariants || hasMatrix;
+    return (Array.isArray(product.colors) && product.colors.length > 0) ||
+           (Array.isArray(product.sizes) && product.sizes.length > 0) ||
+           (Array.isArray(product.variants) && product.variants.length > 0) ||
+           Store.hasVariantMatrix(product);
   }
-  
+
+  var OPTIONS_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:block;margin:auto;"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>';
+
   function renderHomeProductCard(product) {
-    const outOfStock = !Store.isProductAvailable(product);
-    const badges = [];
-    
+    var outOfStock = !Store.isProductAvailable(product);
+    var badges = [];
+
     if (product.isOffer) badges.push('<span class="badge badge-offer">عرض🔥</span>');
     else if (product.isNew) badges.push('<span class="badge badge-new">جديد</span>');
     else if (product.featured) badges.push('<span class="badge badge-featured">مميز</span>');
     if (outOfStock) badges.push('<span class="badge badge-out-abs">غير متوفر</span>');
 
-    let colorsHtml = "";
+    var colorsHtml = "";
     if (product.colors && product.colors.length > 0) {
-      const maxShow = 4;
-      const slice = product.colors.slice(0, maxShow);
-      const remaining = product.colors.length - maxShow;
-      
-      let dots = slice.map(function(c) {
-        const bg = c.hex || "#ccc";
-        return '<span class="card-color-dot" style="background:' + escapeHtml(bg) + ';" title="' + escapeHtml(c.name || "") + '"></span>';
+      var maxShow = 4;
+      var remaining = product.colors.length - maxShow;
+      var dots = product.colors.slice(0, maxShow).map(function (c) {
+        return '<span class="card-color-dot" style="background:' + escapeHtml(c.hex || "#ccc") + ';" title="' + escapeHtml(c.name || "") + '"></span>';
       }).join("");
-
-      if (remaining > 0) {
-        dots += '<span class="card-color-more">+' + remaining + '</span>';
-      }
-
+      if (remaining > 0) dots += '<span class="card-color-more">+' + remaining + '</span>';
       colorsHtml = '<div class="product-body-colors">' + dots + '</div>';
     } else {
-      const optionsCount = (product.variants && product.variants.length) || 0;
-      if (optionsCount > 1) {
-        badges.push('<span class="badge badge-variants">' + iconSvg("layers") + optionsCount + ' خيارات</span>');
-      }
+      var optionsCount = (product.variants && product.variants.length) || 0;
+      if (optionsCount > 1) badges.push('<span class="badge badge-variants">' + iconSvg("layers") + optionsCount + ' خيارات</span>');
     }
 
-    const hasOptions = productHasOptions(product);
-
-    const actionIcon = hasOptions
-      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;display:block;margin:auto;"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>'
-      : iconSvg("cart");
-
-    const actionTitle = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات والمواصفات" : "أضف للسلة");
-
-    const actionLabel = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات" : "أضف للسلة");
+    var hasOptions = productHasOptions(product);
+    var actionIcon = hasOptions ? OPTIONS_ICON : iconSvg("cart");
+    var actionTitle = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات والمواصفات" : "أضف للسلة");
+    var actionLabel = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات" : "أضف للسلة");
+    var href = 'product.html?id=' + encodeURIComponent(product.id);
 
     return (
       '<article class="product-card">' +
-        '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="product-media">' +
-          productMediaHtml(product) +
-          badges.join("") +
-        '</a>' +
+        '<a href="' + href + '" class="product-media">' + productMediaHtml(product) + badges.join("") + '</a>' +
         '<div class="product-body">' +
           '<span class="product-cat">' + escapeHtml(Store.getCategoryName(product.categoryId)) + "</span>" +
-          '<h3 class="product-name"><a href="product.html?id=' + encodeURIComponent(product.id) + '">' + escapeHtml(product.name) + "</a></h3>" +
+          '<h3 class="product-name"><a href="' + href + '">' + escapeHtml(product.name) + "</a></h3>" +
           colorsHtml +
           '<div class="product-foot">' +
             '<span class="price">' + formatPrice(product.price) + "</span>" +
             '<div class="product-actions">' +
               '<button class="btn btn-primary" ' + (outOfStock ? "disabled" : "") +
-                ' title="' + actionTitle + '"' +
-                ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
-                actionIcon +
-              '<span class="btn-label">' + actionLabel + "</span>" +
+                ' title="' + actionTitle + '" onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
+                actionIcon + '<span class="btn-label">' + actionLabel + "</span>" +
               "</button>" +
             "</div>" +
           "</div>" +
@@ -301,184 +318,205 @@
   }
 
   async function quickAddToCart(productId) {
-    let product = Store.getProduct(productId);
-    if (!product) {
-      const cachedFeatured = JSON.parse(localStorage.getItem("ws_products_filter_featured") || "[]");
-      const cachedOffers = JSON.parse(localStorage.getItem("ws_products_filter_offers") || "[]");
-      const cachedNew = JSON.parse(localStorage.getItem("ws_products_filter_new") || "[]");
-      product = cachedFeatured.find(p => p.id === productId) ||
-                cachedOffers.find(p => p.id === productId) ||
-                cachedNew.find(p => p.id === productId);
-    }
-    if (!product) {
-      product = await Store.loadProductById(productId);
-    }
+    var product = Store.getProduct(productId) || await Store.loadProductById(productId);
     if (!product || !Store.isProductAvailable(product)) return;
 
     if (productHasOptions(product)) {
-        window.location.href = 'product.html?id=' + encodeURIComponent(productId);
-        return;
+      window.location.href = 'product.html?id=' + encodeURIComponent(productId);
+      return;
     }
-    Store.addToCart(productId, 1);
-    if (typeof showToast === 'function') {
-      showToast(product.name + " أُضيف إلى السلة", "success");
-    }
-    if (typeof window.updateCartBadge === 'function') {
-      window.updateCartBadge();
-    }
+    var res = Store.addToCart(productId, 1);
+    if (res && res.capped) showToast("وصلت للحد الأقصى المتوفر من هذا المنتج", "error");
+    else showToast(product.name + " أُضيف إلى السلة", "success");
+    window.updateCartBadge();
   }
 
   function renderGridInto(containerId, products, emptyMessage) {
-    const el = document.getElementById(containerId);
+    var el = document.getElementById(containerId);
     if (!el) return;
+    el.removeAttribute("aria-busy");
     if (!products || !products.length) {
-      el.innerHTML = '<div class="empty-state" style="padding:20px;text-align:center;width:100%;color:var(--ink-400);">' + iconSvg("box") + "<p>" + (emptyMessage || "لا توجد منتجات لعرضها حاليًا.") + "</p></div>";
+      el.innerHTML = '<div class="empty-state" style="padding:20px;text-align:center;width:100%;flex:0 0 100%;color:var(--ink-400);">' + iconSvg("box") + "<p>" + (emptyMessage || "لا توجد منتجات لعرضها حاليًا.") + "</p></div>";
       return;
     }
     el.innerHTML = products.map(renderHomeProductCard).join("");
   }
 
-  async function renderAllHomeContent() {
-    const featureGrid = document.querySelector(".feature-grid");
-    if (featureGrid && typeof iconSvg === "function") {
-      featureGrid.innerHTML = featureGrid.innerHTML
-        .replace("__ICON_TRUCK__", iconSvg("truck"))
-        .replace("__ICON_SHIELD__", iconSvg("shield"))
-        .replace("__ICON_WHATSAPP__", iconSvg("whatsapp"))
-        .replace("__ICON_HEART__", iconSvg("heart"));
-    }
-
-    const s = Store.getSettings();
-    const homeSocial = document.getElementById("homeSocialRow");
-    if (homeSocial && typeof iconSvg === "function") {
-      let socialHtml = "";
-      if (s.whatsapp) socialHtml += '<a href="https://wa.me/' + whatsappDigitsOnly(s.whatsapp) + '" target="_blank" rel="noopener">' + iconSvg("whatsapp") + "واتساب</a>";
-      if (s.instagram) socialHtml += '<a href="' + escapeHtml(s.instagram) + '" target="_blank" rel="noopener">' + iconSvg("instagram") + 'انستقرام</a>';
-      if (s.tiktok) socialHtml += '<a href="' + escapeHtml(s.tiktok) + '" target="_blank" rel="noopener">' + iconSvg("tiktok") + 'تيك توك</a>';
-      homeSocial.innerHTML = socialHtml || '<span style="opacity:.6;">لم يتم إعداد روابط التواصل بعد.</span>';
-    }
-
-    const catEl = document.getElementById("homeCategories");
-    if (catEl) {
-      const categories = Store.getCategories();
-      const mainCategories = categories.filter(function(c) { return !c.parentId; });
-      catEl.innerHTML = mainCategories.map(function (c) {
-        const media = c.image ? '<img src="' + escapeHtml(c.image) + '" alt="' + escapeHtml(c.name) + '" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">' : iconSvg(c.icon || "box");
-        return '<a href="products.html?cat=' + encodeURIComponent(c.id) + '" class="cat-chip"><span class="cat-icon" style="padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;">' + media + '</span><span class="name">' + escapeHtml(c.name) + "</span></a>";
-      }).join("");
-    }
-
-    const cachedFeatured = JSON.parse(localStorage.getItem("ws_products_filter_featured") || "[]");
-    const cachedOffers = JSON.parse(localStorage.getItem("ws_products_filter_offers") || "[]");
-    const cachedNew = JSON.parse(localStorage.getItem("ws_products_filter_new") || "[]");
-    if (cachedFeatured.length) renderGridInto("featuredGrid", cachedFeatured.slice(0, 4));
-    if (cachedOffers.length) renderGridInto("offerGrid", cachedOffers.slice(0, 4));
-    if (cachedNew.length) renderGridInto("newGrid", cachedNew.slice(0, 4));
-
-    renderAdsSlider();
-
-    if (typeof window.updateCartBadge === 'function') {
-      window.updateCartBadge();
-    }
-
-    try {
-      const featuredRes = await Store.loadProductsPageByField("featured", true, 4, null);
-      if (featuredRes && featuredRes.products) {
-        renderGridInto("featuredGrid", featuredRes.products, "لا توجد منتجات مميزة حاليًا.");
-      }
-
-      const offerRes = await Store.loadProductsPageByField("isOffer", true, 4, null);
-      if (offerRes && offerRes.products) {
-        renderGridInto("offerGrid", offerRes.products, "لا توجد عروض وتخفيضات حاليًا.");
-      }
-
-      const newRes = await Store.loadProductsPageByField("isNew", true, 4, null);
-      if (newRes && newRes.products) {
-        renderGridInto("newGrid", newRes.products, "لا توجد منتجات جديدة حاليًا.");
-      }
-    } catch (e) {
-      console.error("Home loading error:", e);
-    }
+  function listSig(list) {
+    return (list || []).map(function (p) {
+      return [p.id, p.name, p.price, p.image, p.available, p.isOffer, p.isNew, p.featured, Store.getTotalStock(p)].join("~");
+    }).join("|");
   }
 
-  function renderAdsSlider() {
-    const adminAds = Store.getAds();
-    const codeAds = (typeof CODE_ADS !== "undefined") ? CODE_ADS : [];
-    const ads = adminAds.concat(codeAds).sort((a, b) => (a.order || 0) - (b.order || 0));
-    const heroArt = document.getElementById("heroPromoContainer");
-    if (!heroArt) return;
-    
-    if (ads.length > 0) {
-        let trackHtml = '<div class="promo-slider-container"><div class="promo-slider-track" id="promoTrack">';
-        let dotsHtml = '<div class="promo-dots">';
-        
-        ads.forEach((ad, index) => {
-            const imgWrap = ad.link ? `<a href="${escapeHtml(ad.link)}" target="_blank" rel="noopener" style="display:block;width:100%;height:100%;"><img src="${escapeHtml(ad.image)}" alt="" loading="lazy" decoding="async"></a>` : `<img src="${escapeHtml(ad.image)}" alt="" loading="lazy" decoding="async">`;
-            trackHtml += `<div class="promo-slide" data-index="${index}">${imgWrap}</div>`;
-            dotsHtml += `<div class="promo-dot ${index === 0 ? 'active' : ''}" data-target="${index}"></div>`;
-        });
-        
-        trackHtml += '</div>' + dotsHtml + '</div></div>';
-        heroArt.innerHTML = trackHtml;
-        
-        const track = document.getElementById("promoTrack");
-        const dots = document.querySelectorAll(".promo-dot");
-        let currentIndex = 0;
-        
-        function goToSlide(index) {
-            if(index < 0) index = ads.length - 1;
-            if(index >= ads.length) index = 0;
-            currentIndex = index;
-            track.style.transform = `translateX(${currentIndex * 100}%)`;
-            dots.forEach(d => d.classList.remove('active'));
-            if(dots[currentIndex]) dots[currentIndex].classList.add('active');
-        }
-        
-        function nextSlide() { goToSlide(currentIndex + 1); }
-        function startAutoSlide() { 
-            if (slideInterval) clearInterval(slideInterval);
-            slideInterval = setInterval(nextSlide, 3500); 
-        }
-        function stopAutoSlide() { clearInterval(slideInterval); }
-        
-        dots.forEach(dot => {
-            dot.addEventListener("click", function() { stopAutoSlide(); goToSlide(parseInt(this.dataset.target)); startAutoSlide(); });
-        });
-        
-        startAutoSlide();
-        
-        let startX = 0, endX = 0;
-        track.addEventListener('touchstart', e => { stopAutoSlide(); startX = e.changedTouches[0].screenX; }, {passive: true});
-        track.addEventListener('touchend', e => { 
-            endX = e.changedTouches[0].screenX; 
-            if (startX - endX > 50) nextSlide(); else if (endX - startX > 50) goToSlide(currentIndex - 1);
-            startAutoSlide();
-        }, {passive: true});
-    } else { 
-        heroArt.innerHTML = '<div class="hero-art-default"><img src="assets/logo/logo.png" alt="شعار المتجر"></div>'; 
-    }
+  function renderSectionError(sec) {
+    var el = document.getElementById(sec.grid);
+    if (!el) return;
+    el.removeAttribute("aria-busy");
+    el.innerHTML = '<div class="load-error" style="flex:0 0 100%;width:100%;"><p>تعذّر تحميل المنتجات. تحقق من الاتصال بالإنترنت.</p>' +
+      '<button type="button" class="btn btn-outline btn-sm">إعادة المحاولة</button></div>';
+    el.querySelector("button").addEventListener("click", function () {
+      el.setAttribute("aria-busy", "true");
+      el.innerHTML = '<article class="product-card skeleton-card" aria-hidden="true"></article>'.repeat(4);
+      loadHomeSection(sec);
+    });
   }
 
-  window.addEventListener("DOMContentLoaded", () => {
-    renderAllHomeContent();
-    if (typeof window.updateCartBadge === 'function') {
-      window.updateCartBadge();
+  function loadHomeSection(sec) {
+    var cached = Store.getFieldCache(sec.cache).slice(0, 4);
+    var painted = false;
+    if (cached.length) { renderGridInto(sec.grid, cached); painted = true; }   // عرض فوري لزائر عاد
+
+    return Store.loadProductsPageByField(sec.field, true, 4, null).then(function (res) {
+      var list = (res.products || []).slice(0, 4);
+      Store.setFieldCache(sec.cache, list);
+      if (!painted || listSig(list) !== listSig(cached)) renderGridInto(sec.grid, list, sec.empty);
+    }).catch(function (err) {
+      console.error("Home section error (" + sec.field + "):", err);
+      if (!painted) renderSectionError(sec);
+    });
+  }
+
+  /* ---------- الأقسام ---------- */
+  var catSig = null;
+  function renderHomeCategories() {
+    var el = document.getElementById("homeCategories");
+    if (!el) return;
+    var cats = Store.getCategories().filter(function (c) { return !c.parentId; });
+
+    if (!cats.length && !LS.get("last_meta_pull_time")) return;     // لم تصل أول مزامنة بعد: نُبقي الـ skeleton
+
+    var sig = JSON.stringify(cats.map(function (c) { return [c.id, c.name, c.image, c.icon]; }));
+    if (sig === catSig) return;
+    catSig = sig;
+    el.removeAttribute("aria-busy");
+
+    if (!cats.length) {
+      el.innerHTML = '<div class="empty-state" style="width:100%;padding:16px;text-align:center;color:var(--ink-400);"><p>لا توجد أقسام مضافة بعد.</p></div>';
+      return;
     }
+    el.innerHTML = cats.map(function (c) {
+      var media = c.image
+        ? '<img src="' + escapeHtml(window.getIkUrl(c.image, 200, 80)) + '" alt="" width="80" height="80" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'
+        : iconSvg(c.icon || "box");
+      return '<a href="products.html?cat=' + encodeURIComponent(c.id) + '" class="cat-chip"><span class="cat-icon" style="padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;">' + media + '</span><span class="name">' + escapeHtml(c.name) + "</span></a>";
+    }).join("");
+  }
+
+  /* ---------- روابط التواصل ---------- */
+  function renderHomeSocial() {
+    var homeSocial = document.getElementById("homeSocialRow");
+    if (!homeSocial) return;
+    var s = Store.getSettings();
+    var html = "";
+    if (s.whatsapp) html += '<a href="https://wa.me/' + whatsappDigitsOnly(s.whatsapp) + '" target="_blank" rel="noopener">' + iconSvg("whatsapp") + "واتساب</a>";
+    if (s.instagram) html += '<a href="' + escapeHtml(safeUrl(s.instagram)) + '" target="_blank" rel="noopener">' + iconSvg("instagram") + 'انستقرام</a>';
+    if (s.tiktok) html += '<a href="' + escapeHtml(safeUrl(s.tiktok)) + '" target="_blank" rel="noopener">' + iconSvg("tiktok") + 'تيك توك</a>';
+    homeSocial.innerHTML = html || '<span style="opacity:.6;">لم يتم إعداد روابط التواصل بعد.</span>';
+  }
+
+  /* ---------- سلايدر الإعلانات ---------- */
+  var adsSig = null;
+  var reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var sliderCtl = { start: function () {}, stop: function () {} };
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) sliderCtl.stop(); else sliderCtl.start();
   });
 
-  document.addEventListener("store:synced", () => {
-    const catEl = document.getElementById("homeCategories");
-    if (catEl) {
-      const categories = Store.getCategories();
-      const mainCategories = categories.filter(c => !c.parentId);
-      catEl.innerHTML = mainCategories.map(c => {
-        const media = c.image ? `<img src="${escapeHtml(c.image)}" alt="${escapeHtml(c.name)}" loading="lazy" decoding="async" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : iconSvg(c.icon || "box");
-        return `<a href="products.html?cat=${encodeURIComponent(c.id)}" class="cat-chip"><span class="cat-icon" style="padding:0;overflow:hidden;display:flex;align-items:center;justify-content:center;">${media}</span><span class="name">${escapeHtml(c.name)}</span></a>`;
-      }).join("");
+  function renderAdsSlider() {
+    var adminAds = Store.getAds();
+    var codeAds = (typeof CODE_ADS !== "undefined") ? CODE_ADS : [];
+    var ads = adminAds.concat(codeAds).filter(function (a) { return a && a.image; })
+      .sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+    var heroArt = document.getElementById("heroPromoContainer");
+    if (!heroArt) return;
+
+    var sig = JSON.stringify(ads.map(function (a) { return [a.image, a.link, a.order]; }));
+    if (sig === adsSig) return;                       // لا تغيير ← لا نعيد بناء السلايدر (يمنع القفز لأول شريحة)
+    var hadSlider = adsSig !== null && adsSig !== "[]";
+    adsSig = sig;
+
+    sliderCtl.stop();
+    sliderCtl = { start: function () {}, stop: function () {} };
+    clearInterval(slideInterval);
+
+    if (!ads.length) {
+      if (hadSlider) heroArt.innerHTML = '<div class="hero-art-default"><img src="assets/logo/logo.png" alt="شعار المتجر" width="160" height="160" decoding="async"></div>';
+      return;
     }
+
+    var trackHtml = '<div class="promo-slider-container"><div class="promo-slider-track" id="promoTrack">';
+    var dotsHtml = ads.length > 1 ? '<div class="promo-dots">' : '';
+    ads.forEach(function (ad, index) {
+      var img = '<img src="' + escapeHtml(window.getIkUrl(ad.image, 900, 80)) + '" alt="إعلان ' + (index + 1) + '" width="800" height="600" ' +
+                'class="img-fade" decoding="async" ' + (index === 0 ? 'fetchpriority="high"' : 'loading="lazy"') +
+                ' onload="this.classList.add(\'is-loaded\')" onerror="this.classList.add(\'is-loaded\')">';
+      var wrapped = ad.link
+        ? '<a href="' + escapeHtml(safeUrl(ad.link)) + '" target="_blank" rel="noopener" style="display:block;width:100%;height:100%;">' + img + '</a>'
+        : img;
+      trackHtml += '<div class="promo-slide" data-index="' + index + '">' + wrapped + '</div>';
+      if (ads.length > 1) dotsHtml += '<div class="promo-dot ' + (index === 0 ? 'active' : '') + '" data-target="' + index + '" role="button" aria-label="الإعلان ' + (index + 1) + '"></div>';
+    });
+    heroArt.innerHTML = trackHtml + '</div>' + (ads.length > 1 ? dotsHtml + '</div>' : '') + '</div>';
+
+    if (ads.length < 2) return;
+
+    var track = document.getElementById("promoTrack");
+    var dots = heroArt.querySelectorAll(".promo-dot");
+    var currentIndex = 0;
+
+    function goToSlide(index) {
+      if (index < 0) index = ads.length - 1;
+      if (index >= ads.length) index = 0;
+      currentIndex = index;
+      track.style.transform = "translateX(" + (currentIndex * 100) + "%)";
+      dots.forEach(function (d, i) { d.classList.toggle("active", i === currentIndex); });
+    }
+    function stop() { clearInterval(slideInterval); slideInterval = null; }
+    function start() {
+      stop();
+      if (reduceMotion || document.hidden) return;
+      slideInterval = setInterval(function () { goToSlide(currentIndex + 1); }, 4000);
+    }
+    sliderCtl = { start: start, stop: stop };
+
+    dots.forEach(function (dot) {
+      dot.addEventListener("click", function () { stop(); goToSlide(parseInt(this.dataset.target, 10)); start(); });
+    });
+
+    var startX = 0;
+    track.addEventListener("touchstart", function (e) { stop(); startX = e.changedTouches[0].screenX; }, { passive: true });
+    track.addEventListener("touchend", function (e) {
+      var endX = e.changedTouches[0].screenX;
+      // RTL: translateX موجب يحرّك المحتوى لليسار، لذلك نبقي نفس منطق الاتجاهات الأصلي
+      if (startX - endX > 50) goToSlide(currentIndex + 1); else if (endX - startX > 50) goToSlide(currentIndex - 1);
+      start();
+    }, { passive: true });
+
+    start();
+  }
+
+  function initHome() {
+    renderHomeSocial();
+    renderHomeCategories();
     renderAdsSlider();
-    if (typeof window.updateCartBadge === 'function') {
-      window.updateCartBadge();
+    HOME_SECTIONS.forEach(loadHomeSection);           // الأقسام الثلاثة بالتوازي
+  }
+
+  window.addEventListener("DOMContentLoaded", initHome);
+
+  document.addEventListener("store:synced", function () {
+    renderHomeSocial();
+    renderHomeCategories();
+    renderAdsSlider();
+  });
+
+  document.addEventListener("store:sync-error", function () {
+    var el = document.getElementById("homeCategories");
+    if (el && el.getAttribute("aria-busy") === "true") {
+      el.removeAttribute("aria-busy");
+      el.innerHTML = '<div class="load-error" style="width:100%;"><p>تعذّر تحميل الأقسام. تحقق من الاتصال بالإنترنت.</p>' +
+        '<button type="button" class="btn btn-outline btn-sm" onclick="location.reload()">إعادة المحاولة</button></div>';
     }
   });
 </script>

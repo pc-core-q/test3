@@ -28,10 +28,10 @@ function showDeliveryModal(onConfirm) {
         '</div>' +
         '<p style="font-size: .85rem; margin-top: -10px; margin-bottom: 20px;">يرجى إدخال عنوانك لإكمال الطلب عبر واتساب.</p>' +
         '<form id="deliveryForm">' +
-          '<div class="field"><label>المحافظة</label><input type="text" id="delGov" placeholder="مثال: بغداد / كربلاء" required></div>' +
-          '<div class="field"><label>المنطقة</label><input type="text" id="delArea" placeholder="مثال: حي الحسين" required></div>' +
+          '<div class="field"><label>المحافظة</label><input type="text" id="delGov" placeholder="مثال: بغداد / كربلاء" autocomplete="address-level1" required></div>' +
+          '<div class="field"><label>المنطقة</label><input type="text" id="delArea" placeholder="مثال: حي الحسين" autocomplete="address-level2" required></div>' +
           '<div class="field"><label>أقرب نقطة دالة (اختياري)</label><input type="text" id="delLandmark" placeholder="مثال: قرب مجسر..."></div>' +
-          '<div class="field"><label>رقم الهاتف</label><input type="tel" id="delPhone" placeholder="مثال: 07700000000" required></div>' +
+          '<div class="field"><label>رقم الهاتف</label><input type="tel" id="delPhone" placeholder="مثال: 07700000000" inputmode="tel" autocomplete="tel" minlength="10" maxlength="15" pattern="[0-9+\s\-]{10,15}" title="أدخل رقم هاتف صحيح (10 أرقام على الأقل)" required></div>' +
           '<div class="field"><label>ملاحظات (اختياري)</label><textarea id="delNotes" placeholder="مثال: التوصيل مساءً، أو أي تفاصيل أخرى..." style="min-height: 60px;"></textarea></div>' +
           '<button type="submit" class="btn btn-whatsapp btn-block" style="margin-top:20px;">تأكيد وإرسال عبر واتساب</button>' +
         '</form>' +
@@ -41,6 +41,10 @@ function showDeliveryModal(onConfirm) {
     document.getElementById("closeDeliveryModal").addEventListener("click", function() {
       modal.classList.remove("open");
     });
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.addEventListener("click", function (e) { if (e.target === modal) modal.classList.remove("open"); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") modal.classList.remove("open"); });
   }
 
   document.getElementById("delGov").value = "";
