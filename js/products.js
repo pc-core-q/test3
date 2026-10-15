@@ -241,7 +241,7 @@ async function queryAlgoliaShop(pageToFetch) {
   else if (shopState.sort === "price-desc") targetIndex += "_price_desc";
 
   const filters = [];
-  filters.push("available:true");
+  //filters.push("available:true");
 
   if (shopState.categoryId && shopState.categoryId !== "all") {
     filters.push('categoryId:"' + shopState.categoryId + '"');
