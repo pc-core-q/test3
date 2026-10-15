@@ -1,6 +1,6 @@
 /* ==========================================================================
-   products.js (معمارية هجينة تلقائية: محلي / Algolia بحسب الحد المحدد في config.js)
-   + حفظ التمرير + نفاد الكمية الذكي + الصور التراكمية + معالجة السباق في التحميل الأولي
+   products.js (معمارية هجينة ذكية: محلي / Algolia بحسب الحد في config.js)
+   + حفظ التمرير + نفاد الكمية الذكي + الصور التراكمية + إصلاح فخ كاش البداية
    ========================================================================== */
 
 function productMediaHtml(product) {
@@ -212,20 +212,19 @@ function ensureShopPaginationUI() {
   grid.parentNode.insertBefore(wrap, grid.nextSibling);
 }
 
-// دالة جلب المنتجات: هجينة ذكية تقرر بين المحلي وAlgolia حسب حجم المتجر
+// دالة جلب المنتجات: هجينة تقرر بين المحلي وAlgolia بحسب حجم المتجر ومفاتيحه
 async function queryAlgoliaShop(pageToFetch) {
   const cfg = typeof STORE_CONFIG !== "undefined" ? STORE_CONFIG : {};
   const isAlgoliaReady = cfg.algoliaAppId && !cfg.algoliaAppId.startsWith("YOUR_") && cfg.algoliaSearchKey;
-
-  // قراءة الحد الفاصل من config.js مع اعتماد 400 كقيمة افتراضية
   const algoliaThreshold = (typeof cfg.algoliaThreshold === "number") ? cfg.algoliaThreshold : 400;
 
-  // جلب عداد المنتجات الخفيف فوراً دون الحاجة لتنزيل آلاف المنتجات إلى جهاز الزائر
+  // جلب العداد الحقيقي بدقة (سواء من الكاش أو عن بُعد)
   let totalProducts = (typeof Store !== "undefined" && typeof Store.getProductsCount === "function")
     ? Store.getProductsCount()
     : 0;
 
-  if (totalProducts === 0 && typeof Store !== "undefined" && typeof Store.fetchRemoteProductsCount === "function") {
+  // إذا كان العداد غير محسوب أو يساوي فقط كاش الصفحة الأولى (<= 24)، نستعلم عن العدد الفعلي عن بُعد بطلب خفيف
+  if (totalProducts <= 24 && typeof Store !== "undefined" && typeof Store.fetchRemoteProductsCount === "function") {
     try {
       totalProducts = await Store.fetchRemoteProductsCount();
     } catch (e) {
@@ -233,7 +232,6 @@ async function queryAlgoliaShop(pageToFetch) {
     }
   }
 
-  // إذا لم تكن مفاتيح Algolia مهيأة أو كان المتجر صغيراً (أقل من أو يساوي الحد الفاصل)، نعتمد الفرز المحلي المجاني
   const shouldUseAlgolia = isAlgoliaReady && (totalProducts > algoliaThreshold);
 
   if (!shouldUseAlgolia) {
@@ -311,19 +309,26 @@ async function queryAlgoliaShop(pageToFetch) {
   return result;
 }
 
-// دالة الفلترة والترتيب المحلي الفوري (للمتاجر حتى الحد الفاصل أو كبديل احتياطي)
+// دالة الفلترة والترتيب المحلي الفوري مع التخلص التام من فخ الـ 18 منتجاً
 async function queryFallbackStore(pageToFetch) {
-  let pool = Store.getProducts();
-  if (!pool || pool.length === 0) {
+  let pool = Store.getProducts() || [];
+
+  const totalExpected = (typeof Store !== "undefined" && typeof Store.getProductsCount === "function")
+    ? Store.getProductsCount()
+    : 0;
+
+  // إذا كان الكاش فارغاً، أو يحتوي فقط على عينات البداية (<= 24) وهناك منتجات أخرى في المتجر
+  if (pool.length === 0 || (totalExpected > 0 && pool.length < totalExpected) || (pool.length <= 24 && !sessionStorage.getItem("ws_full_synced"))) {
     if (typeof Store.loadAllProductsFromFirebase === "function") {
       try {
-        pool = await Store.loadAllProductsFromFirebase();
+        const full = await Store.loadAllProductsFromFirebase(true);
+        if (full && full.length) {
+          pool = full;
+          sessionStorage.setItem("ws_full_synced", "1");
+        }
       } catch (e) {
         pool = Store.getProducts() || [];
       }
-    } else if (typeof Store.loadProductsPage === "function") {
-      await Store.loadProductsPage(100, null);
-      pool = Store.getProducts() || [];
     }
   }
 
@@ -434,7 +439,6 @@ async function renderShopResults(options) {
   const wrap = document.getElementById("shopLoadMoreWrap");
   if (wrap) wrap.style.display = (shopState.pagination.done || list.length === 0) ? "none" : "block";
 
-  // استرجاع موضع التمرير إن كان قادماً من صفحة تفاصيل المنتج
   restoreShopScrollPosition();
 }
 
@@ -471,7 +475,6 @@ async function initShopPage() {
     searchInput.value = shopState.search;
     searchInput.placeholder = "ابحث واضغط Enter (3 أحرف على الأقل)...";
     
-    // البحث فقط عند الضغط على مفتاح Enter لحماية الباقة
     searchInput.addEventListener("keydown", function (e) {
       if (e.key === "Enter") {
         e.preventDefault();
@@ -776,7 +779,6 @@ async function initProductDetailPage() {
   let selectedSize = hasSizes ? product.sizes[0] : null;
   let selectedVariant = hasLegacyVariants ? product.variants[0] : null;
 
-  // تحديث التوفر الذكي وتعطيل المقاسات المنتهية للون المختار
   function updateSmartSizesAvailability() {
     if (!hasSizes) return;
     const sizeBtns = document.querySelectorAll("#sizeButtons .size-btn");
