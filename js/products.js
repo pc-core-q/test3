@@ -2,14 +2,12 @@
    products.js (نسخة الدفعات المتطورة — معمارية الـ 10,000 منتج)
    ========================================================================== */
 
-function productMediaHtml(product, eager) {
+function productMediaHtml(product) {
   if (product.image) {
-    return '<img src="' + escapeHtml(window.getIkUrl(product.image, 600, 80)) + '" ' +
+    return '<img src="' + escapeHtml(window.getIkUrl(product.image, 700, 85)) + '" ' +
            'alt="' + escapeHtml(product.name || "") + '" ' +
-           'class="product-media-img img-fade" width="600" height="600" ' +
-           (eager ? 'fetchpriority="high" ' : 'loading="lazy" ') + 'decoding="async" ' +
-           'onload="this.classList.add(\'is-loaded\')" ' +
-           'onerror="this.onerror=null; this.classList.add(\'is-loaded\'); this.src=\'https://placehold.co/600x600/FAF0EE/5B4146?text=صورة+تجريبية\';">';
+           'class="product-media-img" loading="lazy" decoding="async" ' +
+           'onerror="this.onerror=null; this.src=\'https://placehold.co/600x600/f2f4f9/16233f?text=صورة+تجريبية\';">';
   }
   const cat = Store.getCategories().find(function (c) { return c.id === product.categoryId; });
   const key = cat ? cat.icon : "box";
@@ -19,7 +17,7 @@ function productMediaHtml(product, eager) {
 function renderSkeletonCards(count) {
   let html = '';
   for (let i = 0; i < count; i++) {
-    html += '<article class="product-card skeleton-card" aria-hidden="true"></article>';
+    html += '<article class="product-card skeleton-card"></article>';
   }
   return html;
 }
@@ -34,7 +32,7 @@ function productHasOptions(product) {
   return hasColors || hasSizes || hasVariants || hasMatrix;
 }
 
-function renderProductCard(product, index) {
+function renderProductCard(product) {
   const outOfStock = !Store.isProductAvailable(product);
   const badges = [];
   
@@ -80,7 +78,7 @@ function renderProductCard(product, index) {
   return (
     '<article class="product-card">' +
       '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="product-media">' +
-        productMediaHtml(product, typeof index === "number" && index < 4) +
+        productMediaHtml(product) +
         badges.join("") +
       "</a>" +
       '<div class="product-body">' +
@@ -118,9 +116,8 @@ async function quickAddToCart(productId) {
       window.location.href = 'product.html?id=' + encodeURIComponent(productId);
       return;
   }
-  const res = Store.addToCart(productId, 1);
-  if (res && res.capped) showToast("وصلت للحد الأقصى المتوفر من هذا المنتج", "error");
-  else showToast(product.name + " أُضيف إلى السلة", "success");
+  Store.addToCart(productId, 1);
+  showToast(product.name + " أُضيف إلى السلة", "success");
   if (typeof window.updateCartBadge === "function") {
     window.updateCartBadge();
   }
@@ -133,7 +130,7 @@ function renderGridInto(containerId, products, emptyMessage) {
     el.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">' + iconSvg("box") + "<p>" + (emptyMessage || "لا توجد منتجات لعرضها حاليًا.") + "</p></div>";
     return;
   }
-  el.innerHTML = products.map(function (p, i) { return renderProductCard(p, i); }).join("");
+  el.innerHTML = products.map(renderProductCard).join("");
 }
 
 const SHOP_PAGE_SIZE = 12;
@@ -142,24 +139,14 @@ const shopState = {
   pagination: { token: 0, loading: false, done: false, cursors: {}, products: [] }
 };
 
-function shopCategoryIds(categoryId) {
-  const ids = [categoryId];
-  Store.getCategories().forEach(function (c) {
-    if (c.parentId === categoryId && ids.indexOf(c.id) === -1) ids.push(c.id);
-  });
-  return ids;
-}
-
 function resetShopPagination() {
   shopState.pagination = {
     token: shopState.pagination.token + 1,
     loading: false,
     done: false,
     cursors: {},
-    products: [],
-    error: false
+    products: []
   };
-  shopState.rendered = 0;
 }
 
 function showShopLoading(show) {
@@ -321,7 +308,6 @@ async function fetchNextShopBatch(token) {
   const page = shopState.pagination;
   if (page.loading || page.done || token !== page.token) return;
   page.loading = true;
-  page.error = false;
   showShopLoading(true);
 
   try {
@@ -341,11 +327,9 @@ async function fetchNextShopBatch(token) {
     } 
     else if (shopState.categoryId !== "all") {
       const sourceKey = "cat:" + shopState.categoryId;
-      page.fetchedIds = shopCategoryIds(shopState.categoryId).join(",");
       const cursor = page.cursors[sourceKey] || null;
 
-      // قسم أب له فروع ← نجلب منتجات الأب وكل فروعه معًا (المنتجات تُخزَّن بمعرّف الفرع غالبًا)
-      const result = await Store.loadProductsPageByCategories(shopCategoryIds(shopState.categoryId), SHOP_PAGE_SIZE, cursor);
+      const result = await Store.loadProductsPageByCategory(shopState.categoryId, SHOP_PAGE_SIZE, cursor);
       if (token !== page.token) return;
       added = result.products;
       page.cursors[sourceKey] = result.nextCursor;
@@ -372,10 +356,7 @@ async function fetchNextShopBatch(token) {
     if (!added.length) page.done = true;
   } catch (error) {
     console.error("Shop pagination error:", error);
-    if (token === page.token) {
-      page.error = true;                       // لا نُعلن النهاية: نسمح بإعادة المحاولة
-      showToast("تعذّر تحميل المنتجات، حاول مرة أخرى", "error");
-    }
+    page.done = true;
   } finally {
     if (token === shopState.pagination.token) {
       page.loading = false;
@@ -384,7 +365,37 @@ async function fetchNextShopBatch(token) {
   }
 }
 
-function renderSubCategoryChips() {
+async function renderShopResults(options) {
+  options = options || {};
+  ensureShopPaginationUI();
+  const token = shopState.pagination.token;
+
+  if (options.reset) {
+    resetShopPagination();
+    ensureShopPaginationUI();
+  }
+
+  await fetchNextShopBatch(shopState.pagination.token);
+  if (token !== shopState.pagination.token && !options.reset) return;
+
+  let list = shopState.pagination.products.slice();
+
+  if (shopState.search) {
+    const q = shopState.search.toLowerCase();
+    list = list.filter(function (p) { 
+      return (p.name || "").toLowerCase().includes(q) || 
+             (p.description || "").toLowerCase().includes(q) ||
+             (p.barcode && String(p.barcode).toLowerCase().includes(q)); 
+    });
+  }
+
+  switch (shopState.sort) {
+    case "price-asc": list.sort(function (a, b) { return a.price - b.price; }); break;
+    case "price-desc": list.sort(function (a, b) { return b.price - a.price; }); break;
+    case "name": list.sort(function (a, b) { return (a.name || "").localeCompare((b.name || ""), "ar"); }); break;
+    default: break;
+  }
+
   const subCatContainerId = "subCategoryScroller";
   let subCatContainer = document.getElementById(subCatContainerId);
   if (shopState.categoryId !== "all" && !shopState.filterMode) {
@@ -410,75 +421,13 @@ function renderSubCategoryChips() {
       } else if (subCatContainer) subCatContainer.style.display = "none";
     }
   } else if (subCatContainer) subCatContainer.style.display = "none";
-}
-
-async function renderShopResults(options) {
-  options = options || {};
-  ensureShopPaginationUI();
-
-  if (options.reset) {
-    resetShopPagination();
-    ensureShopPaginationUI();
-  }
-  const token = shopState.pagination.token;
-
-  await fetchNextShopBatch(token);
-  if (token !== shopState.pagination.token) return;      // طلب أحدث (تغيير قسم/فلتر) حلّ محله
-
-  // أثناء البحث نُكمل جلب الدفعات (بحدّ أقصى) كي لا يقتصر البحث على الدفعة الأولى فقط
-  if (shopState.search) {
-    let guard = 0;
-    while (token === shopState.pagination.token && !shopState.pagination.done && !shopState.pagination.error && guard++ < 8) {
-      await fetchNextShopBatch(token);
-    }
-    if (token !== shopState.pagination.token) return;
-  }
-
-  let list = shopState.pagination.products.slice();
-
-  if (shopState.search) {
-    const q = shopState.search.toLowerCase();
-    list = list.filter(function (p) { 
-      return (p.name || "").toLowerCase().includes(q) || 
-             (p.description || "").toLowerCase().includes(q) ||
-             (p.barcode && String(p.barcode).toLowerCase().includes(q)); 
-    });
-  }
-
-  switch (shopState.sort) {
-    case "price-asc": list.sort(function (a, b) { return a.price - b.price; }); break;
-    case "price-desc": list.sort(function (a, b) { return b.price - a.price; }); break;
-    case "name": list.sort(function (a, b) { return (a.name || "").localeCompare((b.name || ""), "ar"); }); break;
-    default: break;
-  }
-
-  renderSubCategoryChips();
 
   let emptyMsg = "لا توجد منتجات مطابقة لهذا القسم حاليًا.";
   if (shopState.filterMode === "featured") emptyMsg = "عذراً، لا توجد منتجات مميزة في المتجر حالياً.";
   else if (shopState.filterMode === "offer") emptyMsg = "عذراً، لا توجد عروض وتخفيضات حالياً.";
   else if (shopState.filterMode === "new") emptyMsg = "عذراً، لا توجد منتجات جديدة في المتجر حالياً.";
 
-  const grid = document.getElementById("shopGrid");
-  const canAppend = grid && !options.reset && !shopState.search && shopState.sort === "default" &&
-                    shopState.rendered > 0 && list.length >= shopState.rendered;
-  if (canAppend) {
-    // تحميل المزيد: نُضيف البطاقات الجديدة فقط (بدون إعادة رسم الشبكة → لا وميض ولا قفزة في التمرير)
-    const fresh = list.slice(shopState.rendered);
-    if (fresh.length) grid.insertAdjacentHTML("beforeend", fresh.map(function (p) { return renderProductCard(p, 99); }).join(""));
-  } else if (!list.length && shopState.pagination.error) {
-    if (grid) {
-      grid.innerHTML = '<div class="load-error"><p>تعذّر تحميل المنتجات. تحقق من الاتصال بالإنترنت.</p><button type="button" class="btn btn-outline btn-sm" id="shopRetryBtn">إعادة المحاولة</button></div>';
-      const retry = document.getElementById("shopRetryBtn");
-      if (retry) retry.addEventListener("click", function () {
-        grid.innerHTML = renderSkeletonCards(8);
-        renderShopResults({ reset: true });
-      });
-    }
-  } else {
-    renderGridInto("shopGrid", list, emptyMsg);
-  }
-  shopState.rendered = list.length;
+  renderGridInto("shopGrid", list, emptyMsg);
   
   const countEl = document.getElementById("resultCount");
   if (countEl) countEl.style.display = "none";
@@ -531,44 +480,16 @@ async function initHomeCollections() {
   }
 }
 
-function productDetailNotFound(mount) {
-  mount.innerHTML = '<div class="empty-state">' + iconSvg("box") + "<p>هذا المنتج غير موجود أو تم حذفه.</p>" + '<a href="products.html" class="btn btn-outline">العودة إلى المتجر</a></div>';
-}
-
-function productSig(p) {
-  return [p.id, p.name, p.price, p.image, p.available, p.stock, JSON.stringify(p.inventory || {}),
-          (p.images || []).join(","), JSON.stringify(p.colors || []), (p.sizes || []).join(","), (p.variants || []).join(",")].join("~");
-}
-
-async function initProductDetailPage(freshProduct) {
+async function initProductDetailPage() {
   const mount = document.getElementById("productDetail");
   if (!mount) return;
 
   const id = new URLSearchParams(location.search).get("id");
-  // نعرض النسخة المحلية فورًا (إن وُجدت) ثم نتحقق من السعر/المخزون الحالي بالخلفية
-  let product = freshProduct || (id ? Store.getProduct(id) : null);
-  const servedFromCache = !!product && !freshProduct;
+  const product = id ? await Store.loadProductById(id) : null;
 
   if (!product) {
-    mount.innerHTML = '<div class="detail-skeleton" aria-busy="true" aria-label="جاري تحميل المنتج">' +
-      '<div class="skeleton-line skeleton-img-big" style="height:auto"></div>' +
-      '<div><span class="skeleton-line" style="width:30%;margin-bottom:14px"></span><span class="skeleton-line" style="height:28px;width:80%;margin-bottom:14px"></span>' +
-      '<span class="skeleton-line" style="height:24px;width:35%;margin-bottom:22px"></span><span class="skeleton-line" style="width:95%;margin-bottom:10px"></span>' +
-      '<span class="skeleton-line" style="width:85%;margin-bottom:10px"></span><span class="skeleton-line" style="height:46px;width:100%;margin-top:24px"></span></div></div>';
-    product = id ? await Store.loadProductById(id) : null;
-  }
-
-  if (!product) {
-    productDetailNotFound(mount);
+    mount.innerHTML = '<div class="empty-state">' + iconSvg("box") + "<p>هذا المنتج غير موجود أو تم حذفه.</p>" + '<a href="products.html" class="btn btn-outline">العودة إلى المتجر</a></div>';
     return;
-  }
-
-  if (servedFromCache) {
-    Store.loadProductById(id, true).then(function (fresh) {
-      if (!document.getElementById("productDetail")) return;
-      if (!fresh) { productDetailNotFound(mount); return; }                 // حُذف المنتج فعلًا
-      if (productSig(fresh) !== productSig(product)) initProductDetailPage(fresh);
-    });
   }
 
   document.title = product.name + " — " + (Store.getSettings().storeName || "متجرك الإلكتروني");
@@ -591,13 +512,13 @@ async function initProductDetailPage(freshProduct) {
   }
 
   if (allImages.length > 0) {
-    galleryHtml = '<div class="detail-gallery"><img id="mainProductDetailImage" src="' + escapeHtml(window.getIkUrl(allImages[0], 1000, 85)) + '" alt="' + escapeHtml(product.name) + '" class="detail-gallery-img img-fade" width="1000" height="1000" fetchpriority="high" decoding="async" onload="this.classList.add(\'is-loaded\')" onerror="this.classList.add(\'is-loaded\')"></div>';
+    galleryHtml = '<div class="detail-gallery"><img id="mainProductDetailImage" src="' + escapeHtml(window.getIkUrl(allImages[0], 1000, 85)) + '" alt="' + escapeHtml(product.name) + '" class="detail-gallery-img"></div>';
     
     if (allImages.length > 1) {
         thumbnailsHtml = '<div class="gallery-thumbnails">';
         allImages.forEach((img, index) => {
             const activeClass = index === 0 ? "active" : "";
-            thumbnailsHtml += `<img src="${escapeHtml(window.getIkUrl(img, 150, 70))}" width="150" height="150" loading="lazy" decoding="async" class="gallery-thumb ${activeClass}" data-src="${escapeHtml(window.getIkUrl(img, 1000, 85))}" alt="صورة ${index + 1}">`;
+            thumbnailsHtml += `<img src="${escapeHtml(window.getIkUrl(img, 150, 70))}" class="gallery-thumb ${activeClass}" data-src="${escapeHtml(window.getIkUrl(img, 1000, 85))}" alt="صورة ${index + 1}">`;
         });
         thumbnailsHtml += '</div>';
     }
@@ -748,9 +669,8 @@ async function initProductDetailPage(freshProduct) {
         const qty = Number(qtyInput ? qtyInput.value : 1) || 1;
         const meta = { color: selectedColor, size: selectedSize, variant: selectedVariant };
         const itemKey = buildCartItemKey(product.id, meta);
-        const res = Store.addToCart(itemKey, qty, meta);
-        if (res && res.capped) showToast("وصلت للحد الأقصى المتوفر من هذا المنتج", "error");
-        else showToast(product.name + " أُضيف إلى السلة", "success");
+        Store.addToCart(itemKey, qty, meta);
+        showToast(product.name + " أُضيف إلى السلة", "success");
         if (typeof window.updateCartBadge === "function") {
           window.updateCartBadge();
         }
@@ -777,7 +697,7 @@ async function initProductDetailPage(freshProduct) {
         
         const colorObj = product.colors.find(function (c) { return c.name === selectedColor; });
         if (mainImage && colorObj && colorObj.image) {
-            mainImage.src = window.getIkUrl(colorObj.image, 1000, 85);
+            mainImage.src = escapeHtml(window.getIkUrl(colorObj.image, 1000, 85));
             thumbs.forEach(t => t.classList.remove("active"));
         }
         
@@ -826,7 +746,7 @@ async function initProductDetailPage(freshProduct) {
         li.style.fontWeight = "700";
         
         if (mainImage && product.variantImages && product.variantImages[selectedVariant]) {
-            mainImage.src = window.getIkUrl(product.variantImages[selectedVariant], 1000, 85);
+            mainImage.src = escapeHtml(window.getIkUrl(product.variantImages[selectedVariant], 1000, 85));
             thumbs.forEach(t => t.classList.remove("active"));
         }
       });
@@ -873,27 +793,11 @@ document.addEventListener("DOMContentLoaded", function () {
   initProductDetailPage();
 });
 
-// وصول الأقسام/الإعدادات لا يستلزم إعادة جلب المنتجات أو إعادة بناء الصفحة (كان يسبب جلبًا مزدوجًا ووميضًا لأول زائر)
 document.addEventListener("store:synced", function () {
+  initHomeCollections();
   if (document.getElementById("shopGrid")) {
     renderCategoryFilterPanel();
-    renderSubCategoryChips();
-    // أول زيارة: الأقسام وصلت بعد بدء الجلب → قد يكون القسم الأب جُلب بدون فروعه، فنعيد الجلب مرة
-    if (shopState.categoryId !== "all" && !shopState.filterMode && shopCategoryIds(shopState.categoryId).length > 1 &&
-        shopState.pagination.fetchedIds !== shopCategoryIds(shopState.categoryId).join(",")) {
-      renderShopResults({ reset: true });
-    }
+    renderShopResults({ reset: true });
   }
-  const detail = document.getElementById("productDetail");
-  if (detail) {
-    const id = new URLSearchParams(location.search).get("id");
-    const p = id ? Store.getProduct(id) : null;
-    if (p) {
-      const name = Store.getCategoryName(p.categoryId);
-      const catEl = detail.querySelector(".detail-info .product-cat");
-      if (catEl) catEl.textContent = name;
-      const metaEl = detail.querySelector(".detail-meta span");
-      if (metaEl) metaEl.textContent = "القسم: " + name;
-    }
-  }
+  if (document.getElementById("productDetail")) initProductDetailPage();
 });
