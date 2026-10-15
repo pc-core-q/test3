@@ -1,6 +1,6 @@
 /* ==========================================================================
-   products.js (معمارية هجينة: محلي حتى 500 منتج / Algolia لما فوق 500 منتج)
-   + حفظ التمرير + نفاد الكمية الذكي + الصور التراكمية
+   products.js (معمارية هجينة: محلي حتى 400 منتج / Algolia لما فوق 400 منتج)
+   + حفظ التمرير + نفاد الكمية الذكي + الصور التراكمية + معالجة السباق في التحميل الأولي
    ========================================================================== */
 
 function productMediaHtml(product) {
@@ -217,16 +217,25 @@ async function queryAlgoliaShop(pageToFetch) {
   const cfg = typeof STORE_CONFIG !== "undefined" ? STORE_CONFIG : {};
   const isAlgoliaReady = cfg.algoliaAppId && !cfg.algoliaAppId.startsWith("YOUR_") && cfg.algoliaSearchKey;
 
-  // فحص عدد المنتجات المسجلة في المتجر
-  const totalProducts = (Store.getProducts() || []).length;
-  const ALGOLIA_THRESHOLD = 400; // الحد الفاصل: أقل من 500 محلي مجاني، أكثر من 500 سيرفر Algolia
+  // التحقق من اكتمال تحميل المنتجات لمعرفة العدد الإجمالي بدقة
+  let productsPool = Store.getProducts() || [];
+  if (productsPool.length === 0 && typeof Store.loadAllProductsFromFirebase === "function") {
+    try {
+      productsPool = await Store.loadAllProductsFromFirebase();
+    } catch (e) {
+      productsPool = Store.getProducts() || [];
+    }
+  }
 
-  // إذا لم تكن مفاتيح ألكوليا مفعلة أو كانت المنتجات 500 أو أقل، نعتمد على الدالة المحلية السريعة
+  const totalProducts = productsPool.length;
+  const ALGOLIA_THRESHOLD = 400; // الحد الفاصل: ما فوق 400 يستعلم من سيرفر Algolia
+
+  // إذا لم تكن مفاتيح Algolia مهيأة أو كان العدد أقل من الحد، نعتمد على الدالة المحلية
   if (!isAlgoliaReady || totalProducts <= ALGOLIA_THRESHOLD) {
     return queryFallbackStore(pageToFetch);
   }
 
-  // --- في حال كان المتجر كبيراً (> 500 منتج) ومفاتيح Algolia جاهزة ---
+  // --- في حال كان المتجر كبيراً ومفاتيح Algolia جاهزة ---
   let targetIndex = cfg.algoliaIndexName || "products";
   if (shopState.sort === "price-asc") targetIndex += "_price_asc";
   else if (shopState.sort === "price-desc") targetIndex += "_price_desc";
@@ -296,23 +305,23 @@ async function queryAlgoliaShop(pageToFetch) {
   return result;
 }
 
-// دالة الفلترة والترتيب المحلي الفوري (للمتاجر حتى 500 منتج أو كبديل احتياطي)
+// دالة الفلترة والترتيب المحلي الفوري (للمتاجر حتى 400 منتج أو كبديل احتياطي)
 async function queryFallbackStore(pageToFetch) {
   let pool = Store.getProducts();
-  if (!pool || pool.length < 20) {
+  if (!pool || pool.length === 0) {
     if (typeof Store.loadAllProductsFromFirebase === "function") {
       try {
         pool = await Store.loadAllProductsFromFirebase();
       } catch (e) {
         pool = Store.getProducts() || [];
       }
-    } else {
+    } else if (typeof Store.loadProductsPage === "function") {
       await Store.loadProductsPage(100, null);
       pool = Store.getProducts() || [];
     }
   }
 
-  let list = pool.filter(p => p && Store.isProductAvailable(p));
+  let list = (pool || []).filter(p => p && Store.isProductAvailable(p));
   if (shopState.categoryId && shopState.categoryId !== "all") {
     list = list.filter(p => p.categoryId === shopState.categoryId);
   }
@@ -428,11 +437,24 @@ async function loadNextShopPage() {
   await renderShopResults();
 }
 
-function initShopPage() {
+async function initShopPage() {
   const grid = document.getElementById("shopGrid");
   if (!grid) return;
 
   setupScrollPreservation();
+
+  // عرض بطاقات التحميل الهيكلية فوراً
+  grid.innerHTML = renderSkeletonCards(8);
+
+  // ضمان اكتمال تحميل الأقسام والمنتجات من Firebase في الدخول المباشر
+  if (typeof Store !== "undefined") {
+    if (typeof Store.loadCategories === "function" && (!Store.getCategories() || Store.getCategories().length === 0)) {
+      try { await Store.loadCategories(); } catch (e) {}
+    }
+    if (typeof Store.loadAllProductsFromFirebase === "function" && (!Store.getProducts() || Store.getProducts().length === 0)) {
+      try { await Store.loadAllProductsFromFirebase(); } catch (e) {}
+    }
+  }
 
   const params = new URLSearchParams(location.search);
   if (params.get("cat")) shopState.categoryId = params.get("cat");
@@ -468,9 +490,8 @@ function initShopPage() {
     });
   }
 
-  grid.innerHTML = renderSkeletonCards(8);
   renderCategoryFilterPanel();
-  renderShopResults({ reset: true });
+  await renderShopResults({ reset: true });
 }
 
 window.updateCategory = function(catId) {
