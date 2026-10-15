@@ -228,7 +228,7 @@ async function queryAlgoliaShop(pageToFetch) {
   }
 
   const totalProducts = productsPool.length;
-  const ALGOLIA_THRESHOLD =0; // الحد الفاصل: ما فوق 400 يستعلم من سيرفر Algolia
+  const ALGOLIA_THRESHOLD = 400; // الحد الفاصل: ما فوق 400 يستعلم من سيرفر Algolia
 
   // إذا لم تكن مفاتيح Algolia مهيأة أو كان العدد أقل من الحد، نعتمد على الدالة المحلية
   if (!isAlgoliaReady || totalProducts <= ALGOLIA_THRESHOLD) {
@@ -241,7 +241,7 @@ async function queryAlgoliaShop(pageToFetch) {
   else if (shopState.sort === "price-desc") targetIndex += "_price_desc";
 
   const filters = [];
-  //filters.push("available:true");
+  filters.push("available:true");
 
   if (shopState.categoryId && shopState.categoryId !== "all") {
     filters.push('categoryId:"' + shopState.categoryId + '"');
@@ -293,7 +293,8 @@ async function queryAlgoliaShop(pageToFetch) {
       isOffer: !!h.isOffer,
       isNew: !!h.isNew,
       available: h.available !== false,
-      stock: h.stock || 1
+      stock: h.stock || 1,
+      inventory: h.inventory || (h.available !== false ? { "_||_": (Number(h.stock) || 1) } : {})
     })),
     nbPages: data.nbPages || 1
   };
