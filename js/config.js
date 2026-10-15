@@ -13,7 +13,7 @@ const STORE_CONFIG = {
   storeDescription: "متجر إلكتروني يقدم أفضل المنتجات بطلب مباشر عبر واتساب.",
 
   // بيانات التواصل
-  whatsappNumber: "",   // بصيغة دولية بدون + وبدون مسافات، مثال: 9647xxxxxxxxx
+  whatsappNumber: "",    // بصيغة دولية بدون + وبدون مسافات، مثال: 9647xxxxxxxxx
   phone: "",
   instagram: "",
   tiktok: "",
@@ -50,6 +50,11 @@ const STORE_CONFIG = {
   algoliaAdminKey: "44dc546894c94620675e5a9112264cc1",         // مفتاح الإدارة للوحة التحكم فقط
   algoliaIndexName: "products",
 
-  // === ضوابط المنتجات والاستيراد ===
-  maxExcelImportCount: 1000                          // الحد الأقصى للمنتجات المستوردة من الإكسل
+  // === ضوابط المعمارية الهجينة والمنتجات ===
+  // الحد الفاصل للتحويل التلقائي إلى Algolia:
+  // ما دون هذا الرقم يعمل محلياً ومجاناً، وما فوقه يتحول تلقائياً إلى خوادم Algolia
+  algoliaThreshold: 400,
+
+  // الحد الأقصى للمنتجات المستوردة من الإكسل
+  maxExcelImportCount: 1000                         
 };
