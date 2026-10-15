@@ -45,9 +45,9 @@ const STORE_CONFIG = {
   imageKitEndpoint: "https://ik.imagekit.io/test3wf",
 
   // === Algolia Search Engine ===
-  algoliaAppId: "YOUR_ALGOLIA_APP_ID",
-  algoliaSearchKey: "YOUR_ALGOLIA_SEARCH_KEY",       // مفتاح البحث فقط (آمن للواجهة العامة)
-  algoliaAdminKey: "YOUR_ALGOLIA_ADMIN_KEY",         // مفتاح الإدارة للوحة التحكم فقط
+  algoliaAppId: "OMN0MLR7PE",
+  algoliaSearchKey: "12af33f3ef65f6c90459f089b7301d6f",       // مفتاح البحث فقط (آمن للواجهة العامة)
+  algoliaAdminKey: "44dc546894c94620675e5a9112264cc1",         // مفتاح الإدارة للوحة التحكم فقط
   algoliaIndexName: "products",
 
   // === ضوابط المنتجات والاستيراد ===
