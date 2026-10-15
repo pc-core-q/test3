@@ -228,7 +228,7 @@ async function queryAlgoliaShop(pageToFetch) {
   }
 
   const totalProducts = productsPool.length;
-  const ALGOLIA_THRESHOLD = 0; // الحد الفاصل: ما فوق 400 يستعلم من سيرفر Algolia
+  const ALGOLIA_THRESHOLD = 400; // الحد الفاصل: ما فوق 400 يستعلم من سيرفر Algolia
 
   // إذا لم تكن مفاتيح Algolia مهيأة أو كان العدد أقل من الحد، نعتمد على الدالة المحلية
   if (!isAlgoliaReady || totalProducts <= ALGOLIA_THRESHOLD) {
