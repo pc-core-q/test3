@@ -1,8 +1,7 @@
 /* ==========================================================================
    admin.js
    منطق لوحة تحكم الأدمن بالكامل (admin.html). 
-   تم التحديث: دعم الباركود (SKU)، مزامنة الأسعار والمخزون من ملفات Excel و CSV عبر SheetJS،
-   وتقييد رفع الصور بحد أقصى 4MB لمنع استهلاك الباقة وبطء المعالجة.
+   تم التحديث: تقييد استيراد الإكسل بـ 50 منتج متوفر، ومزامنة Algolia التلقائية.
    ========================================================================== */
 
 let editingProductId = null;
@@ -28,7 +27,7 @@ async function initAdminPage() {
   }
 
   // لوحة الأدمن تحتاج القائمة الكاملة، بينما المتجر العام لا يسحبها.
-  await Store.loadAllProductsFromFirebase(true); // دائمًا قائمة كاملة وحديثة قبل أي حفظ (saveProducts يكتب القائمة كلها)
+  await Store.loadAllProductsFromFirebase(true);
   // جلب أحدث الطلبات من السيرفر فور فتح لوحة التحكم
   await Store.loadOrdersFromFirebase();
 
@@ -36,7 +35,6 @@ async function initAdminPage() {
   const logoutBtn = document.getElementById("adminLogoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", handleAdminLogout);
   
-  // زر الهامبرغر لفتح القائمة الجانبية (إذا كان موجوداً)
   const sidebarToggle = document.getElementById("adminSidebarToggle");
   if (sidebarToggle) {
     sidebarToggle.addEventListener("click", toggleAdminSidebar);
@@ -56,10 +54,93 @@ async function initAdminPage() {
   wireCategoryModal();
   wireAdModal(); 
   wireSettingsForm();
-  wireExcelSync(); // تفعيل استيراد ومزامنة الإكسل
+  wireExcelSync();
 
   const productSearch = document.getElementById("adminProductSearch");
   if (productSearch) productSearch.addEventListener("input", renderProductsTable);
+}
+
+/* ---------------------------------------------------------------------- */
+/* مزامنة البيانات مع محرك البحث Algolia                                  */
+/* ---------------------------------------------------------------------- */
+
+async function syncProductsToAlgolia(productsList) {
+  const cfg = typeof STORE_CONFIG !== "undefined" ? STORE_CONFIG : {};
+  if (!cfg.algoliaAppId || cfg.algoliaAppId.startsWith("YOUR_") || !cfg.algoliaAdminKey || cfg.algoliaAdminKey.startsWith("YOUR_")) {
+    return; // Algolia غير مفعل أو المفاتيح لم تُضبط
+  }
+
+  const indexName = cfg.algoliaIndexName || "products";
+  const url = `https://${cfg.algoliaAppId}.algolia.net/1/indexes/${encodeURIComponent(indexName)}/batch`;
+
+  // إرسال المنتجات المتوفرة فقط وتجريد الحقول الثقيلة
+  const requests = [];
+  productsList.forEach(p => {
+    const isAvail = Store.isProductAvailable(p);
+    if (isAvail) {
+      requests.push({
+        action: "updateObject",
+        body: {
+          objectID: p.id,
+          name: p.name || "",
+          price: Number(p.price) || 0,
+          categoryId: p.categoryId || "",
+          image: p.image || "",
+          colors: (p.colors || []).map(c => ({ name: c.name, hex: c.hex })),
+          sizes: p.sizes || [],
+          variants: p.variants || [],
+          featured: !!p.featured,
+          isOffer: !!p.isOffer,
+          isNew: !!p.isNew,
+          available: true,
+          stock: p.stock || 1
+        }
+      });
+    } else {
+      requests.push({
+        action: "deleteObject",
+        body: { objectID: p.id }
+      });
+    }
+  });
+
+  if (!requests.length) return;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "X-Algolia-Application-Id": cfg.algoliaAppId,
+        "X-Algolia-API-Key": cfg.algoliaAdminKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ requests })
+    });
+    if (!res.ok) console.error("Algolia sync response error:", await res.text());
+  } catch (err) {
+    console.error("فشل مزامنة Algolia:", err);
+  }
+}
+
+async function deleteProductFromAlgolia(productId) {
+  const cfg = typeof STORE_CONFIG !== "undefined" ? STORE_CONFIG : {};
+  if (!cfg.algoliaAppId || cfg.algoliaAppId.startsWith("YOUR_") || !cfg.algoliaAdminKey || cfg.algoliaAdminKey.startsWith("YOUR_")) {
+    return;
+  }
+  const indexName = cfg.algoliaIndexName || "products";
+  const url = `https://${cfg.algoliaAppId}.algolia.net/1/indexes/${encodeURIComponent(indexName)}/${encodeURIComponent(productId)}`;
+
+  try {
+    await fetch(url, {
+      method: "DELETE",
+      headers: {
+        "X-Algolia-Application-Id": cfg.algoliaAppId,
+        "X-Algolia-API-Key": cfg.algoliaAdminKey
+      }
+    });
+  } catch (err) {
+    console.error("فشل حذف المنتج من Algolia:", err);
+  }
 }
 
 /* ---------------------------------------------------------------------- */
@@ -75,7 +156,6 @@ function wireExcelSync() {
     if (!file) return;
 
     try {
-      // 1. قراءة الملف
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -86,12 +166,6 @@ function wireExcelSync() {
         return;
       }
 
-      // 2. سحب المنتجات الحالية من الكاش/Firebase
-      let products = Store.getProducts();
-      let updatedCount = 0;
-      let addedCount = 0;
-
-      // دالة مساعدة للبحث عن العمود باختلاف المسميات (عربي/إنجليزي)
       const getVal = (row, possibleKeys) => {
         for (let key of possibleKeys) {
           const foundKey = Object.keys(row).find(k => k.trim().toLowerCase() === key.toLowerCase());
@@ -105,6 +179,8 @@ function wireExcelSync() {
       const priceKeys = ["السعر", "سعر البيع", "سعر المفرد", "price"];
       const stockKeys = ["الكمية", "المخزون", "الرصيد", "stock", "qty"];
 
+      // 1. فلترة واستخراج الصفوف المتوفرة فقط (استبعاد كمية 0)
+      const validRows = [];
       rows.forEach(row => {
         const barcodeVal = getVal(row, barcodeKeys)?.toString().trim();
         const nameVal = getVal(row, nameKeys)?.toString().trim();
@@ -114,39 +190,59 @@ function wireExcelSync() {
         if (isNaN(priceVal)) priceVal = 0;
         if (isNaN(stockVal)) stockVal = 0;
 
-        // تجاوز الصف إذا لم يكن يحتوي على اسم أو باركود
-        if (!nameVal && !barcodeVal) return; 
+        // استبعاد أي منتج كميته 0 أو غير معرف
+        if (stockVal <= 0) return;
+        if (!nameVal && !barcodeVal) return;
 
-        // البحث عن المنتج هل هو موجود مسبقاً؟
+        validRows.push({ barcodeVal, nameVal, priceVal, stockVal });
+      });
+
+      if (validRows.length === 0) {
+        alert("لم يتم العثور على أي منتجات متوفرة (الكمية أكبر من صفر) في الملف.");
+        return;
+      }
+
+      // 2. تطبيق سقف الـ 50 منتجاً لحماية الباقة
+      const MAX_IMPORT = (typeof STORE_CONFIG !== "undefined" && STORE_CONFIG.maxExcelImportCount) || 50;
+      if (validRows.length > MAX_IMPORT) {
+        alert(`الملف يحتوي على (${validRows.length}) منتج متوفر.\nالحد الأقصى المسموح باستيراده دفعة واحدة هو (${MAX_IMPORT}) منتج لحماية الحساب.\nيرجى تصفية ملف الإكسل وتصدير المنتجات المطلوبة فقط.`);
+        return;
+      }
+
+      let products = Store.getProducts();
+      let updatedCount = 0;
+      let addedCount = 0;
+      const touchedProducts = [];
+
+      validRows.forEach(item => {
         let existingProduct = products.find(p => 
-          (barcodeVal && (p.barcode === barcodeVal || p.sku === barcodeVal || p.id === barcodeVal)) ||
-          (nameVal && p.name === nameVal)
+          (item.barcodeVal && (p.barcode === item.barcodeVal || p.sku === item.barcodeVal || p.id === item.barcodeVal)) ||
+          (item.nameVal && p.name === item.nameVal)
         );
 
         if (existingProduct) {
-          // --- التحديث (المنتج موجود) ---
-          existingProduct.price = priceVal;
-          existingProduct.stock = stockVal;
-          if (barcodeVal && !existingProduct.barcode) {
-            existingProduct.barcode = barcodeVal;
-            existingProduct.sku = barcodeVal;
+          existingProduct.price = item.priceVal;
+          existingProduct.stock = item.stockVal;
+          if (item.barcodeVal && !existingProduct.barcode) {
+            existingProduct.barcode = item.barcodeVal;
+            existingProduct.sku = item.barcodeVal;
           }
+          existingProduct.available = true;
+          touchedProducts.push(existingProduct);
           updatedCount++;
         } else {
-          // --- الإضافة (منتج جديد كلياً) ---
-          if (!nameVal) return; // الاسم شرط أساسي لإضافة منتج جديد
-          
+          if (!item.nameVal) return;
           const newProduct = {
-            id: uid("prd"), // توليد معرّف فريد للمنتج
-            name: nameVal,
-            barcode: barcodeVal || "",
-            sku: barcodeVal || "",
-            price: priceVal,
-            stock: stockVal,
-            categoryId: "", // يُترك فارغاً مبدئياً ليقوم الأدمن بتصنيفه لاحقاً
+            id: uid("prd"),
+            name: item.nameVal,
+            barcode: item.barcodeVal || "",
+            sku: item.barcodeVal || "",
+            price: item.priceVal,
+            stock: item.stockVal,
+            categoryId: "",
             available: true,
             featured: false,
-            isNew: true, // تمييزه كمنتج جديد
+            isNew: true,
             isOffer: false,
             image: "",
             images: [],
@@ -155,28 +251,31 @@ function wireExcelSync() {
             inventory: {}
           };
           products.push(newProduct);
+          touchedProducts.push(newProduct);
           addedCount++;
         }
       });
 
-      // 3. حفظ التعديلات في Firebase و LocalStorage
+      // 3. الحفظ في Firebase والمزامنة الفورية مع Algolia
       await Store.saveProducts(products);
+      await syncProductsToAlgolia(touchedProducts);
       
-      alert(`تمت العملية بنجاح!\n- تم تحديث سعر/كمية: ${updatedCount} منتج\n- تمت إضافة: ${addedCount} منتج جديد`);
+      alert(`تمت العملية بنجاح!\n- تم تحديث: ${updatedCount} منتج\n- تمت إضافة: ${addedCount} منتج جديد\n- تمت مزامنة محرك البحث تلقائياً.`);
       
-      // 4. إعادة رسم جدول المنتجات في لوحة التحكم
       if (typeof renderProductsTable === "function") {
         renderProductsTable();
       }
+      renderStats();
       
     } catch (error) {
       console.error("Excel import error:", error);
       alert("حدث خطأ أثناء قراءة الملف. تأكد من أن الملف بصيغة Excel صالحة وأن الأعمدة مطابقة.");
     } finally {
-      fileInput.value = ""; // تصفير الحقل لاختيار نفس الملف مجدداً إن لزم الأمر
+      fileInput.value = "";
     }
   });
 }
+
 /* ---------------------------------------------------------------------- */
 /* رفع الصور ومعالجتها الذكية بدقة عالية عبر ImageKit CDN                 */
 /* ---------------------------------------------------------------------- */
@@ -184,7 +283,6 @@ function wireExcelSync() {
 async function uploadToImgBB(file, isBanner = false) {
   if (!file) throw new Error("لم يتم اختيار ملف");
 
-  // 1. فحص الحد الأقصى لحجم الصورة (4 ميغابايت)
   const MAX_SIZE_MB = 4;
   const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
 
@@ -195,7 +293,6 @@ async function uploadToImgBB(file, isBanner = false) {
     throw new Error(errorMsg);
   }
 
-  // 2. التحقق من صيغة الملف (أن يكون صورة فقط)
   if (!file.type || !file.type.startsWith("image/")) {
     const errorMsg = "الملف المختار ليس صورة صالحة!";
     showToast(errorMsg, "error");
@@ -343,11 +440,12 @@ function renderProductsTable() {
   }).join("");
 }
 
-function deleteProductConfirm(id) {
+async function deleteProductConfirm(id) {
   const product = Store.getProduct(id);
   if (!product) return;
   if (confirm('هل تريد حذف المنتج "' + product.name + '"؟ لا يمكن التراجع عن هذا الإجراء.')) {
     Store.deleteProduct(id);
+    await deleteProductFromAlgolia(id);
     renderProductsTable();
     renderStats();
     showToast("تم حذف المنتج", "success");
@@ -734,7 +832,7 @@ async function saveProductForm(e) {
 
   const data = {
     barcode: barcodeVal,
-    sku: barcodeVal, // حفظ كـ barcode و sku لضمان التوافق مع أي تسمية
+    sku: barcodeVal,
     name: document.getElementById("productName").value.trim(),
     description: document.getElementById("productDescription").value.trim(),
     price: Number(document.getElementById("productPrice").value) || 0,
@@ -756,12 +854,20 @@ async function saveProductForm(e) {
     return;
   }
 
+  let savedProduct = null;
   if (editingProductId) {
+    data.id = editingProductId;
     Store.updateProduct(editingProductId, data);
+    savedProduct = Store.getProduct(editingProductId);
     showToast("تم تحديث المنتج", "success");
   } else {
-    Store.addProduct(data);
+    savedProduct = Store.addProduct(data);
     showToast("تمت إضافة المنتج", "success");
+  }
+
+  // مزامنة المنتج مع Algolia
+  if (savedProduct) {
+    await syncProductsToAlgolia([savedProduct]);
   }
 
   closeProductModal();
@@ -1093,6 +1199,7 @@ window.changeOrderStatus = async function(orderId, selectElement) {
     if (newStatus === 'prepared' && !order.stockDeducted) {
         if (confirm("هل تريد تأكيد تجهيز الطلب وخصم المنتجات من المخزون تلقائياً؟")) {
             showToast("جاري التحديث وخصم الكميات...");
+            const affectedProducts = [];
             
             for (let item of order.items) {
                 let product = Store.getProduct(item.productId);
@@ -1121,7 +1228,12 @@ window.changeOrderStatus = async function(orderId, selectElement) {
                         stock: newTotalStock, 
                         inventory: product.inventory 
                     });
+                    affectedProducts.push(Store.getProduct(product.id));
                 }
+            }
+
+            if (affectedProducts.length > 0) {
+              await syncProductsToAlgolia(affectedProducts);
             }
             
             order.stockDeducted = true;

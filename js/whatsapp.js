@@ -15,6 +15,15 @@ function whatsappDigitsOnly(number) {
 
 function showDeliveryModal(onConfirm) {
   let modal = document.getElementById("deliveryModal");
+  const STORAGE_KEY = "ws_saved_customer_info";
+
+  // استرجاع البيانات المحفوظة مسبقاً إن وجدت
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+  } catch (err) {
+    saved = {};
+  }
   
   if (!modal) {
     modal = document.createElement("div");
@@ -28,12 +37,16 @@ function showDeliveryModal(onConfirm) {
         '</div>' +
         '<p style="font-size: .85rem; margin-top: -10px; margin-bottom: 20px;">يرجى إدخال عنوانك لإكمال الطلب عبر واتساب.</p>' +
         '<form id="deliveryForm">' +
-          '<div class="field"><label>المحافظة</label><input type="text" id="delGov" placeholder="مثال: بغداد / كربلاء" autocomplete="address-level1" required></div>' +
-          '<div class="field"><label>المنطقة</label><input type="text" id="delArea" placeholder="مثال: حي الحسين" autocomplete="address-level2" required></div>' +
+          '<div class="field"><label>المحافظة *</label><input type="text" id="delGov" placeholder="مثال: بغداد / كربلاء" autocomplete="address-level1" required></div>' +
+          '<div class="field"><label>المنطقة *</label><input type="text" id="delArea" placeholder="مثال: حي الحسين" autocomplete="address-level2" required></div>' +
           '<div class="field"><label>أقرب نقطة دالة (اختياري)</label><input type="text" id="delLandmark" placeholder="مثال: قرب مجسر..."></div>' +
-          '<div class="field"><label>رقم الهاتف</label><input type="tel" id="delPhone" placeholder="مثال: 07700000000" inputmode="tel" autocomplete="tel" minlength="10" maxlength="15" pattern="[0-9+\s\-]{10,15}" title="أدخل رقم هاتف صحيح (10 أرقام على الأقل)" required></div>' +
+          '<div class="field">' +
+            '<label>رقم الهاتف (عراقي 11 رقم) *</label>' +
+            '<input type="tel" id="delPhone" placeholder="07XXXXXXXXX" dir="ltr" inputmode="tel" autocomplete="tel" required style="text-align: right;">' +
+            '<small id="phoneValidationHint" style="display:none; font-size:12px; margin-top:5px; font-weight:500;"></small>' +
+          '</div>' +
           '<div class="field"><label>ملاحظات (اختياري)</label><textarea id="delNotes" placeholder="مثال: التوصيل مساءً، أو أي تفاصيل أخرى..." style="min-height: 60px;"></textarea></div>' +
-          '<button type="submit" class="btn btn-whatsapp btn-block" style="margin-top:20px;">تأكيد وإرسال عبر واتساب</button>' +
+          '<button type="submit" class="btn btn-whatsapp btn-block" id="delSubmitBtn" style="margin-top:20px;">تأكيد وإرسال عبر واتساب</button>' +
         '</form>' +
       '</div>';
     document.body.appendChild(modal);
@@ -47,28 +60,89 @@ function showDeliveryModal(onConfirm) {
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") modal.classList.remove("open"); });
   }
 
-  document.getElementById("delGov").value = "";
-  document.getElementById("delArea").value = "";
-  document.getElementById("delLandmark").value = "";
-  document.getElementById("delPhone").value = "";
+  // تعبئة الحقول بالقيم المخزنة تلقائياً
+  document.getElementById("delGov").value = saved.gov || "";
+  document.getElementById("delArea").value = saved.area || "";
+  document.getElementById("delLandmark").value = saved.landmark && saved.landmark !== "لا يوجد" ? saved.landmark : "";
+  document.getElementById("delPhone").value = saved.phone || "";
   const notesField = document.getElementById("delNotes");
-  if (notesField) notesField.value = "";
+  if (notesField) notesField.value = saved.notes || "";
+
+  const phoneInput = document.getElementById("delPhone");
+  const phoneHint = document.getElementById("phoneValidationHint");
+  const submitBtn = document.getElementById("delSubmitBtn");
+
+  // التحقق اللحظي من رقم الهاتف العراقي (11 رقم يبدأ بـ 07)
+  function validatePhoneNumber(value) {
+    const clean = String(value || "").replace(/[^0-9]/g, "");
+    const regex = /^07[3-9][0-9]{8}$/;
+
+    if (!clean) {
+      phoneHint.style.display = "none";
+      phoneInput.style.borderColor = "var(--border)";
+      if (submitBtn) submitBtn.disabled = false;
+      return false;
+    }
+
+    if (regex.test(clean)) {
+      phoneHint.style.display = "block";
+      phoneHint.style.color = "var(--success)";
+      phoneHint.textContent = "✓ رقم هاتف صحيح";
+      phoneInput.style.borderColor = "var(--success)";
+      if (submitBtn) submitBtn.disabled = false;
+      return true;
+    } else {
+      phoneHint.style.display = "block";
+      phoneHint.style.color = "var(--error)";
+      phoneHint.textContent = "يجب أن يبدأ بـ 07 ويتكون من 11 رقماً";
+      phoneInput.style.borderColor = "var(--error)";
+      if (submitBtn) submitBtn.disabled = true;
+      return false;
+    }
+  }
+
+  // فحص الهاتف فور الفتح إن وُجدت قيمة محفوظة
+  if (phoneInput.value) {
+    validatePhoneNumber(phoneInput.value);
+  }
+
+  phoneInput.oninput = function(e) {
+    validatePhoneNumber(e.target.value);
+  };
 
   const form = document.getElementById("deliveryForm");
   const newForm = form.cloneNode(true);
   form.parentNode.replaceChild(newForm, form);
 
+  // إعادة ربط الفحص بالنموذج الجديد بعد الاستبدال
+  const rePhoneInput = document.getElementById("delPhone");
+  rePhoneInput.oninput = function(e) {
+    validatePhoneNumber(e.target.value);
+  };
+
   modal.classList.add("open");
 
   newForm.addEventListener("submit", function(e) {
     e.preventDefault();
+    const rawPhone = document.getElementById("delPhone").value.trim();
+    if (!validatePhoneNumber(rawPhone)) {
+      document.getElementById("delPhone").focus();
+      return;
+    }
+
     const info = {
       gov: document.getElementById("delGov").value.trim(),
       area: document.getElementById("delArea").value.trim(),
       landmark: document.getElementById("delLandmark").value.trim() || "لا يوجد",
-      phone: document.getElementById("delPhone").value.trim(),
+      phone: rawPhone,
       notes: document.getElementById("delNotes") ? document.getElementById("delNotes").value.trim() : ""
     };
+
+    // حفظ بيانات التوصيل تلقائياً في localStorage للمرات القادمة
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(info));
+    } catch (err) {}
+
     modal.classList.remove("open"); 
     onConfirm(info); 
   });
@@ -106,7 +180,7 @@ function buildProductWhatsAppLink(product, qty, info, selection) {
   const variantLine = variantLineText(selection);
 
   const lines = [
-    " السلام عليكم، أود طلب هذا المنتج:",
+    "السلام عليكم، أود طلب هذا المنتج:",
     "",
     " *تفاصيل الطلب:*",
     "- اسم المنتج: *" + product.name + "*",
@@ -121,7 +195,7 @@ function buildProductWhatsAppLink(product, qty, info, selection) {
     "- رقم الهاتف: *" + info.phone + "*",
     info.notes ? " *ملاحظات:* " + info.notes : null,
     "",
-    "أنتظر تأكيدكم لإتمام الطلب، شكراً لكم! "
+    "أنتظر تأكيدكم لإتمام الطلب، شكراً لكم!"
   ].filter(Boolean);
 
   return buildWhatsAppUrl(lines.join("\n"));
@@ -129,7 +203,7 @@ function buildProductWhatsAppLink(product, qty, info, selection) {
 
 function buildCartWhatsAppLink(cartLines, products, info) {
   const messageLines = [
-    " السلام عليكم، أود طلب هذه المنتجات من السلة:",
+    "السلام عليكم، أود طلب هذه المنتجات من السلة:",
     "",
     " *تفاصيل الطلب:*"
   ];
@@ -156,7 +230,7 @@ function buildCartWhatsAppLink(cartLines, products, info) {
     messageLines.push(" *ملاحظات:* " + info.notes);
   }
   messageLines.push("");
-  messageLines.push("أنتظر تأكيدكم لإتمام الطلب، شكراً لكم! ");
+  messageLines.push("أنتظر تأكيدكم لإتمام الطلب، شكراً لكم!");
 
   return buildWhatsAppUrl(messageLines.join("\n"));
 }

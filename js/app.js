@@ -1,7 +1,7 @@
 /* ==========================================================================
    app.js
    منطق مشترك بين كل صفحات المتجر: رسم الهيدر والفوتر، القائمة، الإشعارات.
-   تم التحديث: بحث عام خفيف بنظام الدفعات يدعم الباركود ويوفر باندويث Firebase.
+   تم التحديث: بحث عام خفيف، ودعم التحميل التراكمي للصور (Blur-up).
    ========================================================================== */
 
 /* ---------- أدوات التهريب المشتركة (متاحة لكل الصفحات) ---------- */
@@ -25,8 +25,7 @@ function jsStr(value) {
   return escapeHtml(JSON.stringify(String(value === null || value === undefined ? "" : value)));
 }
 
-// ====== الحيلة العبقرية لـ ImageKit ======
-// تجبر السيرفر دائماً على تسليم صيغة WebP فائقة النقاء والصغر بدلاً من JPEG
+// ====== ImageKit: تحسين وضغط الصور وعرض النسخ الضبابية للتحميل التراكمي ======
 window.getIkUrl = function(url, width, quality) {
   if (!url || typeof url !== 'string' || !url.includes("ik.imagekit.io")) return url;
   quality = quality || 85;
@@ -37,7 +36,33 @@ window.getIkUrl = function(url, width, quality) {
     return url.replace(/(ik\.imagekit\.io\/[^\/]+\/)/, "$1" + trString + "/");
   }
 };
-// ==========================================
+
+// توليد صورة مصغرة وضبابية جداً بحجم ضئيل (~1KB) للعرض الفوري
+window.getIkBlurUrl = function(url) {
+  if (!url || typeof url !== 'string' || !url.includes("ik.imagekit.io")) return url;
+  const trString = "tr:w-20,bl-6,q-20,f-webp";
+  if (url.match(/\/tr:[^\/]+\//)) {
+    return url.replace(/\/tr:[^\/]+\//, "/" + trString + "/");
+  } else {
+    return url.replace(/(ik\.imagekit\.io\/[^\/]+\/)/, "$1" + trString + "/");
+  }
+};
+
+// تفعيل استبدال الصورة الضبابية بالصورة الكاملة فور اكتمال التنزيل
+window.initProgressiveImages = function(scope) {
+  const container = scope || document;
+  const lazyImgs = container.querySelectorAll("img.progressive-img:not(.loaded)");
+  lazyImgs.forEach(function(img) {
+    if (img.complete && img.naturalWidth > 0) {
+      img.classList.add("loaded");
+    } else {
+      img.addEventListener("load", function() {
+        img.classList.add("loaded");
+      }, { once: true });
+    }
+  });
+};
+// ===========================================================================
 
 const NAV_LINKS = [
   { href: "index.html", label: "الرئيسية", key: "home", icon: "home" },
@@ -60,7 +85,6 @@ function initSidebarDOM() {
       sidebar.id = "sidebarNav";
       sidebar.className = "sidebar-nav";
       sidebar.setAttribute("aria-label", "قائمة الأقسام");
-      // في صفحة المتجر نغيّر القسم بدون إعادة تحميل؛ في غيرها يعمل الرابط العادي products.html?cat=
       sidebar.addEventListener("click", function (e) {
         const a = e.target.closest ? e.target.closest("a[data-cat]") : null;
         if (!a) return;
@@ -115,8 +139,8 @@ function renderHeader() {
       '<div class="global-search-container">' +
         '<div class="global-search-header">' +
           '<div class="search-box" style="flex:1;margin:0;">' +
-            '<input type="text" id="globalSearchInput" placeholder="ابحث عن منتج أو باركود..." autocomplete="off">' +
-            '<span>' + iconSvg("search") + '</span>' +
+            '<input type="text" id="globalSearchInput" placeholder="ابحث عن منتج أو باركود (3 أحرف على الأقل)..." autocomplete="off">' +
+            '<span id="submitGlobalSearch" style="cursor:pointer;">' + iconSvg("search") + '</span>' +
           '</div>' +
           '<button type="button" class="btn-icon" id="closeGlobalSearch" aria-label="إغلاق">' + iconSvg("close") + '</button>' +
         '</div>' +
@@ -215,13 +239,14 @@ function initGlobalSearch() {
   const overlay = document.getElementById("globalSearchOverlay");
   const input = document.getElementById("globalSearchInput");
   const resultsBox = document.getElementById("globalSearchResults");
+  const submitIcon = document.getElementById("submitGlobalSearch");
 
   if(!openBtn || !overlay) return;
 
   openBtn.addEventListener("click", function() {
       overlay.classList.add("open");
       input.value = "";
-      resultsBox.innerHTML = '<div class="empty-search">اكتب اسم المنتج أو الباركود للبحث...</div>';
+      resultsBox.innerHTML = '<div class="empty-search">اكتب 3 أحرف على الأقل للبحث...</div>';
       setTimeout(() => input.focus(), 100); 
   });
 
@@ -233,59 +258,68 @@ function initGlobalSearch() {
       if(e.target === overlay) overlay.classList.remove("open");
   });
 
-  let searchTimeout;
-  let searchToken = 0;
-  input.addEventListener("input", function() {
-      clearTimeout(searchTimeout);
-      const myToken = ++searchToken;
-      const query = input.value.trim().toLowerCase();
-      if(query.length === 0) {
-          resultsBox.innerHTML = '<div class="empty-search">اكتب اسم المنتج أو الباركود للبحث...</div>';
-          return;
-      }
+  async function executeSearch() {
+    const query = input.value.trim().toLowerCase();
+    if(query.length < 3) {
+        resultsBox.innerHTML = '<div class="empty-search">يرجى كتابة 3 أحرف على الأقل للبحث...</div>';
+        return;
+    }
 
-      resultsBox.innerHTML = '<div class="empty-search">جاري البحث...</div>';
+    resultsBox.innerHTML = '<div class="empty-search">جاري البحث...</div>';
 
-      searchTimeout = setTimeout(async function() {
-          let pool = Store.getProducts();
+    let pool = Store.getProducts();
+    if (!pool || pool.length < 60) {
+        try {
+            const batch = await Store.loadProductsPage(100, null);
+            pool = Store.getProducts();
+            if (!pool.length) pool = batch.products || [];
+        } catch (err) {
+            console.error("Search load error:", err);
+        }
+    }
 
-          if (!pool || pool.length < 60) {
-              try {
-                  const batch = await Store.loadProductsPage(100, null);
-                  pool = Store.getProducts();
-                  if (!pool.length) pool = batch.products || [];
-              } catch (err) {
-                  console.error("Search load error:", err);
-              }
-          }
-          if (myToken !== searchToken) return;          // وصلت نتيجة قديمة بعد كتابة حرف جديد
+    const matched = pool.filter(p => 
+        (p.name || "").toLowerCase().includes(query) || 
+        (p.barcode && String(p.barcode).toLowerCase().includes(query)) ||
+        (p.sku && String(p.sku).toLowerCase().includes(query)) ||
+        (p.description && p.description.toLowerCase().includes(query))
+    ).slice(0, 8);
 
-          const matched = pool.filter(p => 
-              (p.name || "").toLowerCase().includes(query) || 
-              (p.barcode && String(p.barcode).toLowerCase().includes(query)) ||
-              (p.sku && String(p.sku).toLowerCase().includes(query)) ||
-              (p.description && p.description.toLowerCase().includes(query))
-          ).slice(0, 8);
+    if(matched.length === 0) {
+        resultsBox.innerHTML = '<div class="empty-search">لا توجد منتجات مطابقة لـ "' + escapeHtml(query) + '"</div>';
+        return;
+    }
 
-          if(matched.length === 0) {
-              resultsBox.innerHTML = '<div class="empty-search">لا توجد منتجات مطابقة لـ "' + escapeHtml(query) + '"</div>';
-              return;
-          }
+    resultsBox.innerHTML = matched.map(p => {
+        const fullImg = p.image ? window.getIkUrl(p.image, 150, 75) : "";
+        const blurImg = p.image ? window.getIkBlurUrl(p.image) : "";
+        const img = p.image ? `<img src="${escapeHtml(fullImg)}" alt="${escapeHtml(p.name)}" class="progressive-img" style="background-image: url('${escapeHtml(blurImg)}'); background-size: cover;" width="62" height="62" loading="lazy" decoding="async">` : `<div class="search-img-placeholder">${iconSvg("box")}</div>`;
+        return `
+            <a href="product.html?id=${encodeURIComponent(p.id)}" class="search-result-item">
+                <div class="search-item-img">${img}</div>
+                <div class="search-item-info">
+                    <h4>${escapeHtml(p.name)}</h4>
+                    <span>${formatPrice(p.price)}</span>
+                </div>
+            </a>
+        `;
+    }).join("");
 
-          resultsBox.innerHTML = matched.map(p => {
-              const img = p.image ? `<img src="${escapeHtml(window.getIkUrl(p.image, 150, 70))}" alt="${escapeHtml(p.name)}" width="62" height="62" loading="lazy" decoding="async">` : `<div class="search-img-placeholder">${iconSvg("box")}</div>`;
-              return `
-                  <a href="product.html?id=${encodeURIComponent(p.id)}" class="search-result-item">
-                      <div class="search-item-img">${img}</div>
-                      <div class="search-item-info">
-                          <h4>${escapeHtml(p.name)}</h4>
-                          <span>${formatPrice(p.price)}</span>
-                      </div>
-                  </a>
-              `;
-          }).join("");
-      }, 300);
+    window.initProgressiveImages(resultsBox);
+  }
+
+  // البحث عند الضغط على Enter
+  input.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      executeSearch();
+    }
   });
+
+  // البحث عند النقر على أيقونة العدسة
+  if (submitIcon) {
+    submitIcon.addEventListener("click", executeSearch);
+  }
 }
 
 function renderFooter() {
@@ -345,7 +379,6 @@ function initMobileNav() {
   });
 }
 
-// دالة تحديث السلة المحسنة والدقيقة لمنع أي أرقام فانتوم
 window.updateCartBadge = function() {
   const el = document.getElementById("cartCount");
   if (!el) return;
@@ -419,7 +452,6 @@ function initBackToTop() {
   });
 }
 
-/* تحديث الهيكل (الاسم/الأقسام/الفوتر) في مكانه بدون إعادة بناء الهيدر (لا يغلق البحث أو القائمة المفتوحة) */
 function refreshChrome() {
   const mount = document.getElementById("site-header");
   if (mount && mount.dataset.ready === "1") {
@@ -447,13 +479,12 @@ function bootChrome() {
   renderFooter();
   window.updateCartBadge();
   initBackToTop();
+  window.initProgressiveImages();
 }
 
-// السكربت مؤجّل (defer) فالـ DOM جاهز عند تنفيذه — نرسم الهيدر فورًا بدل انتظار DOMContentLoaded
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bootChrome);
 else bootChrome();
 
-// ضمان تحديث العداد الفوري عند العودة بالمتصفح
 window.addEventListener("pageshow", function() {
   window.updateCartBadge();
 });
@@ -462,7 +493,6 @@ document.addEventListener("cart:updated", function() {
   window.updateCartBadge();
 });
 
-// تحديث العداد عند تغيير السلة من تبويب آخر
 window.addEventListener("storage", function (e) {
   if (e.key === "ws_cart") window.updateCartBadge();
 });

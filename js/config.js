@@ -42,5 +42,14 @@ const STORE_CONFIG = {
   imgbbApiKey: "820a1a52d1b835874a9200fe7d3bb6b3",
 
   // === ImageKit (تحسين وضغط الصور عبر CDN) ===
-  imageKitEndpoint: "https://ik.imagekit.io/test3wf"
+  imageKitEndpoint: "https://ik.imagekit.io/test3wf",
+
+  // === Algolia Search Engine ===
+  algoliaAppId: "YOUR_ALGOLIA_APP_ID",
+  algoliaSearchKey: "YOUR_ALGOLIA_SEARCH_KEY",       // مفتاح البحث فقط (آمن للواجهة العامة)
+  algoliaAdminKey: "YOUR_ALGOLIA_ADMIN_KEY",         // مفتاح الإدارة للوحة التحكم فقط
+  algoliaIndexName: "products",
+
+  // === ضوابط المنتجات والاستيراد ===
+  maxExcelImportCount: 50                            // الحد الأقصى للمنتجات المستوردة من الإكسل
 };
