@@ -2,18 +2,14 @@
    store.js — طبقة البيانات المركزية للقالب (localStorage + Firebase Realtime DB)
    كل القراءة والكتابة تمر حصرًا عبر كائن Store في هذا الملف.
 
-   ما تغيّر في هذه النسخة (سرعة أول زيارة):
-   - القراءات العامة (الأقسام/الإعدادات/الإعلانات/المنتجات) تتم عبر Firebase REST
-     بـ fetch عادي → لا حاجة لتحميل Firebase SDK ولا فتح WebSocket في صفحات المتجر.
-     الـ SDK يبقى فقط في login.html / admin.html (المصادقة والكتابة وقراءة الطلبات).
-   - الاستعلامات الثلاثة في الرئيسية تعمل بالتوازي (وتبدأ مبكرًا من <head> عبر window.__early).
-   - إصلاح ترتيب seedIfNeeded() قبل pullFromFirebase().
-   - قراءة/كتابة localStorage آمنة (حصة ممتلئة / وضع خاص / JSON تالف لا يكسر الموقع).
-   - حذف قسم/إعلان من لوحة التحكم يصل الآن للزوار (كان null يتجاهل الحذف).
+   ما تغيّر في هذه النسخة:
+   - دعم العداد الخفيف لعدد المنتجات (Store.getProductsCount) لتحديد استدعاء Algolia تلقائياً.
+   - قراءة عدد المنتجات عن بُعد عبر REST shallow دون تنزيل المنتجات الثقيلة.
+   - القراءات العامة (الأقسام/الإعدادات/الإعلانات/المنتجات) تتم عبر Firebase REST.
    ========================================================================== */
 
 /* ---------------------------------------------------------------------- */
-/* ثوابت                                                                   */
+/* ثوابت                                                                  */
 /* ---------------------------------------------------------------------- */
 
 const META_CACHE_MS = 15 * 60 * 1000;     // كاش الأقسام/الإعدادات/الإعلانات (15 دقيقة لتوفير باندويث Firebase)
@@ -29,7 +25,8 @@ const DB_KEYS = {
   orders: "ws_orders",
   session: "ws_admin_session",
   seeded: "ws_seeded_v1",
-  ads: "ws_ads"
+  ads: "ws_ads",
+  productsCount: "ws_products_count_meta"
 };
 
 /* ---------------------------------------------------------------------- */
@@ -101,7 +98,7 @@ function memoParse(key, fallback) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Firebase                                                                */
+/* Firebase                                                               */
 /* ---------------------------------------------------------------------- */
 
 const DB_URL = String((typeof STORE_CONFIG !== "undefined" && STORE_CONFIG.firebaseDatabaseURL) || "")
@@ -152,7 +149,7 @@ function buildCartItemKey(productId, meta) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* REST transport                                                          */
+/* REST transport                                                         */
 /* ---------------------------------------------------------------------- */
 
 function takeEarly(url) {
@@ -254,7 +251,7 @@ async function matchEntries(field, value, limit) {
   try {
     return entriesFromValue(await restGet(DB_KEYS.products, productQuery(field, value, limit)));
   } catch (e) {
-    if (!e || e.status !== 400) throw e;               // 400 = الفهرس غير معرّف في Rules
+    if (!e || e.status !== 400) throw e;                // 400 = الفهرس غير معرّف في Rules
     if (!_warnedIndex[field]) {
       _warnedIndex[field] = true;
       console.warn('Firebase Rules: أضف "' + field + '" إلى .indexOn تحت ws_products — بدونه يتم تنزيل كل المنتجات (بطيء).');
@@ -285,7 +282,7 @@ function syncNodeToFirebase(nodeKey, data) {
 /* قراءة عقدة كاملة. تُرجع null إذا لا توجد بيانات، وترمي خطأ عند الفشل */
 async function fetchNode(nodeKey) {
   if (!firebaseEnabled) return null;
-  if (nodeKey === DB_KEYS.orders) {                    // الطلبات تحتاج مصادقة ← SDK
+  if (nodeKey === DB_KEYS.orders) {                     // الطلبات تحتاج مصادقة ← SDK
     if (!database) throw new Error("Firebase SDK مطلوب لقراءة الطلبات");
     const snapshot = await database.ref(nodeKey).get();
     return snapshot.exists() ? snapshot.val() : null;
@@ -398,8 +395,6 @@ async function _pullFromFirebase(force) {
     LS.set("last_meta_pull_time", String(now));
 
     const snapshotAfter = [DB_KEYS.categories, DB_KEYS.settings, DB_KEYS.ads].map(function (k) { return LS.get(k); }).join("\u0001");
-    // لا نُطلق الحدث (وبالتالي لا نعيد رسم الصفحة) إلا إذا تغيّرت البيانات فعلًا — أو في أول مزامنة على الإطلاق
-    // (حتى تعرف الصفحات أن البيانات وصلت حتى لو كانت فارغة فتُخفي الـ skeleton)
     if (snapshotAfter !== snapshotBefore || !lastSync) emitStoreEvent("store:synced");
   } catch (e) {
     console.error("Firebase metadata pull error:", e);
@@ -407,7 +402,7 @@ async function _pullFromFirebase(force) {
   }
 }
 
-/* لا نُطلق الأحداث قبل انتهاء كل السكربتات المؤجلة (DOMContentLoaded) وإلا وصل الحدث لمستمعين يستدعون دوال لم تُحمَّل بعد */
+/* لا نُطلق الأحداث قبل انتهاء كل السكربتات المؤجلة (DOMContentLoaded) */
 let _domReady = document.readyState === "complete";
 const _queuedEvents = [];
 if (!_domReady) {
@@ -435,7 +430,8 @@ function seedIfNeeded() {
       DB_KEYS.products,
       DB_KEYS.ads,
       "last_meta_pull_time",
-      "ws_products_all_time"
+      "ws_products_all_time",
+      DB_KEYS.productsCount
     ];
     LS.keys().forEach(function (key) {
       if (key && (key.indexOf("ws_products_") === 0 || keysToRemove.indexOf(key) !== -1)) LS.remove(key);
@@ -467,10 +463,10 @@ function seedIfNeeded() {
   LS.set(DB_KEYS.cart, JSON.stringify([]));
   LS.set(DB_KEYS.orders, JSON.stringify([]));
   LS.set(DB_KEYS.ads, JSON.stringify([]));
+  LS.set(DB_KEYS.productsCount, "0");
   LS.set(DB_KEYS.seeded, "1");
 }
 
-// الترتيب مهم: نُنظّف/نُهيّئ الكاش أولًا ثم نبدأ المزامنة (كان العكس فيمسح الأقسام بعد قراءة cooldown)
 seedIfNeeded();
 pullFromFirebase();
 
@@ -491,7 +487,7 @@ function sumInventory(inventory) {
 /* Store API                                                              */
 /* ---------------------------------------------------------------------- */
 
-let _productsMem = null;            // احتياط عندما تمتلئ حصة localStorage (حتى لا نكتب قائمة قديمة فوق Firebase)
+let _productsMem = null;
 const _inflight = {};
 function dedupe(key, fn) {
   if (_inflight[key]) return _inflight[key];
@@ -501,11 +497,45 @@ function dedupe(key, fn) {
 }
 
 function writeProductsLocal(list) {
+  if (Array.isArray(list)) {
+    LS.set(DB_KEYS.productsCount, String(list.length));
+  }
   if (LS.set(DB_KEYS.products, JSON.stringify(list))) _productsMem = null;
   else _productsMem = list;
 }
 
 const Store = {
+  // دالة العداد السريع والخفيف
+  getProductsCount() {
+    const metaCount = LS.get(DB_KEYS.productsCount);
+    if (metaCount !== null && metaCount !== undefined) {
+      const parsed = parseInt(metaCount, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    const currentProducts = this.getProducts();
+    if (currentProducts && currentProducts.length > 0) {
+      LS.set(DB_KEYS.productsCount, String(currentProducts.length));
+      return currentProducts.length;
+    }
+    return 0;
+  },
+
+  // جلب إجمالي عدد المنتجات من سيرفر Firebase بطلب خفيف دون جلب محتوى المنتجات
+  async fetchRemoteProductsCount() {
+    if (!firebaseEnabled) return this.getProductsCount();
+    try {
+      const shallowKeys = await restGet(DB_KEYS.products, "?shallow=true", 5000);
+      if (shallowKeys && typeof shallowKeys === "object") {
+        const count = Object.keys(shallowKeys).length;
+        LS.set(DB_KEYS.productsCount, String(count));
+        return count;
+      }
+    } catch (e) {
+      /* في حال عدم دعم shallow، نعتمد على المخزن محلياً */
+    }
+    return this.getProductsCount();
+  },
+
   getCategories() {
     return firebaseValueToArray(parseJSON(LS.get(DB_KEYS.categories), []));
   },
@@ -524,7 +554,6 @@ const Store = {
   },
   deleteCategory(id) { this.saveCategories(this.getCategories().filter(c => c.id !== id)); },
   getCategoryName(id) {
-    // خريطة مبنية مرة لكل تغيير في الأقسام بدل JSON.parse لكل بطاقة
     const raw = LS.get(DB_KEYS.categories);
     if (!this._catMap || this._catMapRaw !== raw) {
       const map = {};
@@ -545,7 +574,6 @@ const Store = {
   },
   getProduct(id) { return this.getProducts().find(p => p.id === id) || null; },
 
-  /* كاش قوائم الرئيسية (مميز/عروض/جديد) — يُستخدم للعرض الفوري ثم التحديث بالخلفية */
   getFieldCache(name) {
     return firebaseValueToArray(parseJSON(LS.get("ws_products_filter_" + name), []));
   },
@@ -584,7 +612,6 @@ const Store = {
     return result;
   },
 
-  /* قسم أب + كل فروعه: ids = [parentId, ...childIds] */
   async loadProductsPageByCategories(ids, pageSize, cursorKey) {
     pageSize = Number(pageSize) || 20;
     ids = (ids || []).filter(Boolean);
@@ -630,12 +657,12 @@ const Store = {
     const byId = new Map();
     this.getProducts().forEach(p => { if (p && p.id) byId.set(p.id, p); });
     newProducts.forEach(p => {
-      if (p && p.id) { byId.delete(p.id); byId.set(p.id, p); }      // الأحدث في النهاية
+      if (p && p.id) { byId.delete(p.id); byId.set(p.id, p); }
     });
     let list = Array.from(byId.values());
     if (list.length > PRODUCT_CACHE_LIMIT) {
       list = list.slice(-PRODUCT_CACHE_LIMIT);
-      LS.remove("ws_products_all_time");          // القائمة لم تعد كاملة
+      LS.remove("ws_products_all_time");
     }
     writeProductsLocal(list);
   },
@@ -660,7 +687,6 @@ const Store = {
     return products;
   },
 
-  /* forceRefresh: يتجاوز النسخة المحلية (للأسعار/المخزون الحالية). يُرجع null إذا حُذف المنتج فعلًا. */
   async loadProductById(id, forceRefresh) {
     if (!id) return null;
     if (forceRefresh) _wholeProducts = null;
@@ -671,7 +697,7 @@ const Store = {
       fetched = await dedupe("prod:" + id, function () { return fetchProductByIdFromFirebase(id); });
     } catch (error) {
       console.error("Firebase product fetch error:", error);
-      return local || null;                        // فشل الشبكة: نعرض ما لدينا
+      return local || null;
     }
     if (!fetched) {
       if (local && forceRefresh) writeProductsLocal(this.getProducts().filter(function (p) { return p.id !== id; }));
@@ -725,7 +751,9 @@ const Store = {
     const list = this.getProducts().map(p => p.id === id ? Object.assign({}, p, patch) : p);
     this.saveProducts(list);
   },
-  deleteProduct(id) { this.saveProducts(this.getProducts().filter(p => p.id !== id)); },
+  deleteProduct(id) { 
+    this.saveProducts(this.getProducts().filter(p => p.id !== id)); 
+  },
 
   hasVariantMatrix(product) {
     return !!(product && ((product.colors && product.colors.length) || (product.sizes && product.sizes.length)));
@@ -771,7 +799,6 @@ const Store = {
     LS.set(DB_KEYS.cart, JSON.stringify(cart));
     document.dispatchEvent(new CustomEvent("cart:updated"));
   },
-  /* يُرجع { capped:true } إذا قُيّدت الكمية بالمخزون المتاح */
   addToCart(itemKey, qty, meta) {
     meta = meta || {};
     qty = Math.max(1, Math.floor(Number(qty)) || 1);
@@ -873,7 +900,7 @@ function postOrderRest(order) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(order),
-    keepalive: true                                   // يكتمل الطلب حتى لو انتقل الزائر إلى واتساب فورًا
+    keepalive: true
   }).then(function (res) {
     if (!res.ok) throw new Error("HTTP " + res.status);
   });
