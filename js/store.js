@@ -1,26 +1,17 @@
 /* ==========================================================================
    store.js — طبقة البيانات المركزية للقالب (localStorage + Firebase Realtime DB)
-   كل القراءة والكتابة تمر حصرًا عبر كائن Store في هذا الملف.
-
-   ما تغيّر في هذه النسخة:
-   - دعم العداد الخفيف لعدد المنتجات (Store.getProductsCount) لتحديد استدعاء Algolia تلقائياً.
-   - قراءة عدد المنتجات عن بُعد عبر REST shallow دون تنزيل المنتجات الثقيلة.
-   - دعم المطابقة المزدوجة للمعرفات (id / objectID) لتمكين تعديل وحذف منتجات Algolia والإكسل.
-   - رفع سقف كاش المنتجات إلى 5000 لمنع اقتطاع المنتجات في لوحة الأدمن.
+   مع دعم الفهرس المصغر (Mini-Index) للمتاجر حتى 2000 منتج + المزامنة السحابية.
    ========================================================================== */
 
-/* ---------------------------------------------------------------------- */
-/* ثوابت                                                                  */
-/* ---------------------------------------------------------------------- */
-
-const META_CACHE_MS = 15 * 60 * 1000;     // كاش الأقسام/الإعدادات/الإعلانات (15 دقيقة لتوفير باندويث Firebase)
-const QUERY_CACHE_MS = 2 * 60 * 1000;     // كاش نتائج الاستعلامات داخل الجلسة
-const PRODUCT_CACHE_LIMIT = 5000;         // أقصى عدد منتجات تُحفظ تلقائيًا في localStorage لمنع القص
+const META_CACHE_MS = 15 * 60 * 1000;
+const QUERY_CACHE_MS = 2 * 60 * 1000;
+const PRODUCT_CACHE_LIMIT = 5000;
 const FETCH_TIMEOUT_MS = 15000;
 
 const DB_KEYS = {
   categories: "ws_categories",
   products: "ws_products",
+  miniIndex: "ws_mini_index",
   settings: "ws_settings",
   cart: "ws_cart",
   orders: "ws_orders",
@@ -29,10 +20,6 @@ const DB_KEYS = {
   ads: "ws_ads",
   productsCount: "ws_products_count_meta"
 };
-
-/* ---------------------------------------------------------------------- */
-/* localStorage آمن                                                        */
-/* ---------------------------------------------------------------------- */
 
 const LS = (function () {
   let ok = true;
@@ -46,7 +33,9 @@ const LS = (function () {
     try {
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
-        if (k && k.indexOf("ws_products_") === 0) localStorage.removeItem(k);
+        if (k && (k.indexOf("ws_products_") === 0 || k === DB_KEYS.miniIndex)) {
+          localStorage.removeItem(k);
+        }
       }
     } catch (e) { /* ignore */ }
   }
@@ -60,7 +49,7 @@ const LS = (function () {
       if (!ok) { mem[key] = String(value); return true; }
       try { localStorage.setItem(key, value); return true; }
       catch (e) {
-        evictProductCaches();                       // الحصة ممتلئة: نحرر كاش المنتجات ونعيد المحاولة مرة
+        evictProductCaches();
         try { localStorage.setItem(key, value); return true; }
         catch (e2) { return false; }
       }
@@ -87,7 +76,6 @@ function parseJSON(raw, fallback) {
   } catch (e) { return fallback; }
 }
 
-/* ذاكرة مؤقتة لتحليل JSON (تمنع JSON.parse لكل بطاقة منتج) */
 const _memo = {};
 function memoParse(key, fallback) {
   const raw = LS.get(key);
@@ -98,20 +86,16 @@ function memoParse(key, fallback) {
   return val;
 }
 
-/* ---------------------------------------------------------------------- */
-/* Firebase                                                               */
-/* ---------------------------------------------------------------------- */
-
 const DB_URL = String((typeof STORE_CONFIG !== "undefined" && STORE_CONFIG.firebaseDatabaseURL) || "")
   .trim().replace(/\/+$/, "");
 
-let firebaseEnabled = !!DB_URL;   // يعني: قاعدة البيانات مضبوطة (القراءة تعمل عبر REST حتى بدون SDK)
-let database = null;              // لا يُعرَّف إلا عند تحميل Firebase SDK (login/admin)
+let firebaseEnabled = !!DB_URL;
+let database = null;
 let firebaseAuth = null;
 
 (function initFirebaseSdkIfLoaded() {
   if (!DB_URL) return;
-  if (typeof firebase === "undefined") return;     // صفحات المتجر: لا SDK ← REST فقط
+  if (typeof firebase === "undefined") return;
   try {
     const cfg = STORE_CONFIG || {};
     const authReady = [cfg.firebaseApiKey, cfg.firebaseAuthDomain, cfg.firebaseProjectId, cfg.firebaseAppId]
@@ -149,10 +133,6 @@ function buildCartItemKey(productId, meta) {
   return parts.join("|");
 }
 
-/* ---------------------------------------------------------------------- */
-/* REST transport                                                         */
-/* ---------------------------------------------------------------------- */
-
 function takeEarly(url) {
   const e = window.__early;
   if (e && e[url]) { const p = e[url]; delete e[url]; return p; }
@@ -168,13 +148,12 @@ function productQuery(field, value, limit) {
 
 async function restGet(path, qs, timeoutMs) {
   const url = DB_URL + "/" + path + ".json" + (qs || "");
-
   const early = takeEarly(url);
   if (early) {
     try {
       const r = await early;
       if (r !== undefined) return r;
-    } catch (e) { /* نكمل بالطلب العادي */ }
+    } catch (e) {}
   }
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -253,7 +232,7 @@ async function matchEntries(field, value, limit) {
     if (!e || e.status !== 400) throw e;
     if (!_warnedIndex[field]) {
       _warnedIndex[field] = true;
-      console.warn('Firebase Rules: أضف "' + field + '" إلى .indexOn تحت ws_products — بدونه يتم تنزيل كل المنتجات (بطيء).');
+      console.warn('Firebase Rules: أضف "' + field + '" إلى .indexOn تحت ws_products.');
     }
     return (await wholeProductsEntries()).filter(function (en) { return en[1] && en[1][field] === value; });
   }
@@ -344,12 +323,7 @@ async function fetchAllProductsFromFirebase() {
   return value === null || value === undefined ? [] : firebaseValueToArray(value);
 }
 
-/* ---------------------------------------------------------------------- */
-/* مزامنة البيانات الخفيفة (أقسام + إعدادات + إعلانات)                      */
-/* ---------------------------------------------------------------------- */
-
 let _pullPromise = null;
-
 function pullFromFirebase(force) {
   if (_pullPromise) return _pullPromise;
   _pullPromise = _pullFromFirebase(force).finally(function () { _pullPromise = null; });
@@ -410,10 +384,6 @@ function emitStoreEvent(name) {
   else if (_queuedEvents.indexOf(name) === -1) _queuedEvents.push(name);
 }
 
-/* ---------------------------------------------------------------------- */
-/* التهيئة وإدارة إصدار البيانات                                          */
-/* ---------------------------------------------------------------------- */
-
 function seedIfNeeded() {
   const currentVersion = String((typeof STORE_CONFIG !== "undefined" && STORE_CONFIG.dataVersion) || "1");
   const storedVersion = LS.get("ws_data_version");
@@ -422,6 +392,7 @@ function seedIfNeeded() {
     const keysToRemove = [
       DB_KEYS.categories,
       DB_KEYS.products,
+      DB_KEYS.miniIndex,
       DB_KEYS.ads,
       "last_meta_pull_time",
       "ws_products_all_time",
@@ -438,6 +409,7 @@ function seedIfNeeded() {
 
   LS.set(DB_KEYS.categories, JSON.stringify([]));
   LS.set(DB_KEYS.products, JSON.stringify([]));
+  LS.set(DB_KEYS.miniIndex, JSON.stringify([]));
 
   const cfg = (typeof STORE_CONFIG !== "undefined") ? STORE_CONFIG : {};
   LS.set(DB_KEYS.settings, JSON.stringify({
@@ -464,10 +436,6 @@ function seedIfNeeded() {
 seedIfNeeded();
 pullFromFirebase();
 
-/* ---------------------------------------------------------------------- */
-/* أدوات المتغيرات (الألوان/المقاسات/المخزون)                              */
-/* ---------------------------------------------------------------------- */
-
 function inventoryKey(color, size) {
   return (color || "_") + "||" + (size || "_");
 }
@@ -477,11 +445,8 @@ function sumInventory(inventory) {
   return Object.values(inventory).reduce(function (sum, n) { return sum + (Number(n) || 0); }, 0);
 }
 
-/* ---------------------------------------------------------------------- */
-/* Store API                                                              */
-/* ---------------------------------------------------------------------- */
-
 let _productsMem = null;
+let _miniIndexMem = null;
 const _inflight = {};
 function dedupe(key, fn) {
   if (_inflight[key]) return _inflight[key];
@@ -490,9 +455,35 @@ function dedupe(key, fn) {
   return p;
 }
 
+// بناء وتحديث الفهرس المصغر الخفيف جداً تلقائياً
+function buildMiniRecord(p) {
+  if (!p) return null;
+  const pId = String(p.id || p.objectID || "");
+  return {
+    id: pId,
+    objectID: pId,
+    name: p.name || "",
+    price: Number(p.price) || 0,
+    categoryId: p.categoryId || "",
+    image: p.image || null,
+    barcode: p.barcode || "",
+    available: p.available !== false,
+    stock: p.stock || 1,
+    featured: !!p.featured,
+    isOffer: !!p.isOffer,
+    isNew: !!p.isNew,
+    colors: Array.isArray(p.colors) ? p.colors : [],
+    sizes: Array.isArray(p.sizes) ? p.sizes : [],
+    variants: Array.isArray(p.variants) ? p.variants : []
+  };
+}
+
 function writeProductsLocal(list) {
   if (Array.isArray(list)) {
     LS.set(DB_KEYS.productsCount, String(list.length));
+    const mini = list.map(buildMiniRecord).filter(Boolean);
+    if (LS.set(DB_KEYS.miniIndex, JSON.stringify(mini))) _miniIndexMem = null;
+    else _miniIndexMem = mini;
   }
   if (LS.set(DB_KEYS.products, JSON.stringify(list))) _productsMem = null;
   else _productsMem = list;
@@ -522,10 +513,27 @@ const Store = {
         LS.set(DB_KEYS.productsCount, String(count));
         return count;
       }
-    } catch (e) {
-      /* في حال عدم توفر shallow، نعتمد على الكاش */
-    }
+    } catch (e) {}
     return this.getProductsCount();
+  },
+
+  // دالة الفهرس المصغر فائق السرعة
+  getMiniIndex() {
+    if (_miniIndexMem) return _miniIndexMem;
+    const raw = LS.get(DB_KEYS.miniIndex);
+    if (raw) {
+      const parsed = parseJSON(raw, null);
+      if (parsed && Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+    const prods = this.getProducts();
+    if (prods && prods.length > 0) {
+      const mini = prods.map(buildMiniRecord).filter(Boolean);
+      LS.set(DB_KEYS.miniIndex, JSON.stringify(mini));
+      return mini;
+    }
+    return [];
   },
 
   getCategories() {
@@ -561,7 +569,6 @@ const Store = {
     if (_productsMem) prods = firebaseValueToArray(_productsMem);
     else prods = firebaseValueToArray(parseJSON(LS.get(DB_KEYS.products), []));
 
-    // ضمان وجود الحقلين id و objectID متطابقين في جميع المنتجات
     return prods.map(p => {
       if (!p) return p;
       const realId = String(p.id || p.objectID || "");
@@ -573,7 +580,6 @@ const Store = {
   },
 
   saveProducts(list) {
-    // توحيد الحقول id و objectID قبل الحفظ محلياً وفي Firebase
     const normalized = (list || []).map((p, idx) => {
       if (!p) return p;
       const realId = String(p.id || p.objectID || uid("prd"));
@@ -583,14 +589,12 @@ const Store = {
     syncNodeToFirebase(DB_KEYS.products, normalized);
   },
 
-  // البحث المرن عن المنتج باستخدام id أو objectID كنص
   getProduct(id) { 
     if (id === null || id === undefined) return null;
     const targetId = String(id).trim();
     return this.getProducts().find(p => p && String(p.id || p.objectID).trim() === targetId) || null; 
   },
 
-  // تعديل المنتج بدقة ومطابقة المعرفات
   updateProduct(id, patch) {
     if (id === null || id === undefined) return;
     const targetId = String(id).trim();
@@ -605,7 +609,6 @@ const Store = {
     this.saveProducts(list);
   },
 
-  // حذف المنتج بمرونة
   deleteProduct(id) { 
     if (id === null || id === undefined) return;
     const targetId = String(id).trim();
@@ -794,7 +797,6 @@ const Store = {
       inventory: {}
     }, prod);
     
-    // تأكيد تعيين المعرف
     if (!item.id) item.id = generatedId;
     item.objectID = item.id;
 
@@ -817,7 +819,7 @@ const Store = {
     return Number((product.inventory || {})[key]) || 0;
   },
   isProductAvailable(product) {
-    return !!(product && product.available && this.getTotalStock(product) > 0);
+    return !!(product && product.available !== false && (product.stock > 0 || this.getTotalStock(product) > 0));
   },
 
   getSettings() { return Object.assign({}, memoParse(DB_KEYS.settings, {})); },
@@ -920,14 +922,14 @@ const Store = {
   },
 
   async login(email, password) {
-    if (!firebaseAuth) throw new Error("Firebase Authentication غير مهيأ. أكمل إعدادات Firebase Web App أولًا.");
+    if (!firebaseAuth) throw new Error("Firebase Authentication غير مهيأ.");
     const result = await firebaseAuth.signInWithEmailAndPassword(email.trim(), password);
     const allowed = Array.isArray(STORE_CONFIG.adminEmails) && STORE_CONFIG.adminEmails.length > 0
       ? STORE_CONFIG.adminEmails.map(e => String(e).trim().toLowerCase()).includes((result.user.email || "").toLowerCase())
       : false;
     if (!allowed) {
       await firebaseAuth.signOut();
-      throw new Error("هذا الحساب مصادق عليه في Firebase لكنه ليس ضمن حسابات الأدمن المسموح بها.");
+      throw new Error("هذا الحساب ليس ضمن حسابات الأدمن المسموح بها.");
     }
     sessionStorage.setItem(DB_KEYS.session, "1");
     return result.user;
@@ -938,10 +940,6 @@ const Store = {
     return firebaseAuth ? firebaseAuth.signOut() : Promise.resolve();
   }
 };
-
-/* ---------------------------------------------------------------------- */
-/* تسجيل الطلبات بدون SDK (REST POST) + إعادة المحاولة عند فشل الشبكة       */
-/* ---------------------------------------------------------------------- */
 
 function postOrderRest(order) {
   return fetch(DB_URL + "/" + DB_KEYS.orders + ".json", {
