@@ -53,8 +53,8 @@ const STORE_CONFIG = {
   // === ضوابط المعمارية الهجينة والمنتجات ===
   // الحد الفاصل للتحويل التلقائي إلى Algolia:
   // ما دون هذا الرقم يعمل محلياً ومجاناً، وما فوقه يتحول تلقائياً إلى خوادم Algolia
-  algoliaThreshold: 350,
+  algoliaThreshold: 2000,
 
   // الحد الأقصى للمنتجات المستوردة من الإكسل
-  maxExcelImportCount: 5000                       
+  maxExcelImportCount: 100                       
 };
