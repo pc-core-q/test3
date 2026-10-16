@@ -5,7 +5,8 @@
    ما تغيّر في هذه النسخة:
    - دعم العداد الخفيف لعدد المنتجات (Store.getProductsCount) لتحديد استدعاء Algolia تلقائياً.
    - قراءة عدد المنتجات عن بُعد عبر REST shallow دون تنزيل المنتجات الثقيلة.
-   - القراءات العامة (الأقسام/الإعدادات/الإعلانات/المنتجات) تتم عبر Firebase REST.
+   - دعم المطابقة المزدوجة للمعرفات (id / objectID) لتمكين تعديل وحذف منتجات Algolia والإكسل.
+   - رفع سقف كاش المنتجات إلى 5000 لمنع اقتطاع المنتجات في لوحة الأدمن.
    ========================================================================== */
 
 /* ---------------------------------------------------------------------- */
@@ -14,7 +15,7 @@
 
 const META_CACHE_MS = 15 * 60 * 1000;     // كاش الأقسام/الإعدادات/الإعلانات (15 دقيقة لتوفير باندويث Firebase)
 const QUERY_CACHE_MS = 2 * 60 * 1000;     // كاش نتائج الاستعلامات داخل الجلسة
-const PRODUCT_CACHE_LIMIT = 5000;          // أقصى عدد منتجات تُحفظ تلقائيًا في localStorage
+const PRODUCT_CACHE_LIMIT = 5000;         // أقصى عدد منتجات تُحفظ تلقائيًا في localStorage لمنع القص
 const FETCH_TIMEOUT_MS = 15000;
 
 const DB_KEYS = {
@@ -158,7 +159,6 @@ function takeEarly(url) {
   return null;
 }
 
-/* يجب أن يطابق حرفيًا الدالة q() في السكربت المبكر داخل index.html */
 function productQuery(field, value, limit) {
   let qs = "?orderBy=" + encodeURIComponent(JSON.stringify(field)) +
            "&equalTo=" + encodeURIComponent(JSON.stringify(value));
@@ -187,10 +187,10 @@ async function restGet(path, qs, timeoutMs) {
         err.status = res.status;
         throw err;
       }
-      return await res.json();                         // null إذا لا توجد بيانات
+      return await res.json();
     } catch (e) {
       if ((e && e.status && e.status < 500) || attempt === 1) throw e;
-      await new Promise(function (r) { setTimeout(r, 400); });   // إعادة محاولة واحدة لأخطاء الشبكة/5xx
+      await new Promise(function (r) { setTimeout(r, 400); });
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -203,7 +203,6 @@ function firebaseValueToArray(value) {
   return Object.keys(value).map(function (key) { return value[key]; }).filter(Boolean);
 }
 
-/* ترتيب مفاتيح Firebase: الأرقام أولًا (رقميًا) ثم النصوص */
 function compareKeys(a, b) {
   const ai = /^(0|[1-9]\d*)$/.test(a), bi = /^(0|[1-9]\d*)$/.test(b);
   if (ai && bi) return Number(a) - Number(b);
@@ -251,7 +250,7 @@ async function matchEntries(field, value, limit) {
   try {
     return entriesFromValue(await restGet(DB_KEYS.products, productQuery(field, value, limit)));
   } catch (e) {
-    if (!e || e.status !== 400) throw e;                // 400 = الفهرس غير معرّف في Rules
+    if (!e || e.status !== 400) throw e;
     if (!_warnedIndex[field]) {
       _warnedIndex[field] = true;
       console.warn('Firebase Rules: أضف "' + field + '" إلى .indexOn تحت ws_products — بدونه يتم تنزيل كل المنتجات (بطيء).');
@@ -270,7 +269,6 @@ async function matchAll(field, value) {
   return entries;
 }
 
-/* كتابة عبر SDK (لوحة التحكم فقط — القواعد تسمح للأدمن) */
 function syncNodeToFirebase(nodeKey, data) {
   if (!firebaseEnabled) return;
   if (!database) { console.warn("Firebase SDK غير محمّل — لا يمكن الكتابة إلى " + nodeKey); return; }
@@ -279,10 +277,9 @@ function syncNodeToFirebase(nodeKey, data) {
   });
 }
 
-/* قراءة عقدة كاملة. تُرجع null إذا لا توجد بيانات، وترمي خطأ عند الفشل */
 async function fetchNode(nodeKey) {
   if (!firebaseEnabled) return null;
-  if (nodeKey === DB_KEYS.orders) {                     // الطلبات تحتاج مصادقة ← SDK
+  if (nodeKey === DB_KEYS.orders) {
     if (!database) throw new Error("Firebase SDK مطلوب لقراءة الطلبات");
     const snapshot = await database.ref(nodeKey).get();
     return snapshot.exists() ? snapshot.val() : null;
@@ -301,7 +298,6 @@ async function fetchProductsPageByCategoryFromFirebase(categoryId, pageSize, cur
   return fetchProductsPageByFieldFromFirebase("categoryId", categoryId, pageSize, cursorKey);
 }
 
-/* عدة أقسام معًا (القسم الأب + فروعه) — الطلبات متوازية، والدمج بترتيب المفتاح (المفاتيح فريدة عبر كل المنتجات) */
 async function fetchProductsPageByCategoriesFromFirebase(categoryIds, pageSize, cursorKey) {
   if (!firebaseEnabled || !categoryIds || !categoryIds.length) return { products: [], nextCursor: null, done: true };
   const lists = await Promise.all(categoryIds.map(function (id) {
@@ -316,8 +312,8 @@ async function fetchProductsPageByCategoriesFromFirebase(categoryIds, pageSize, 
 async function fetchProductsPageByFieldFromFirebase(field, value, pageSize, cursorKey) {
   if (!firebaseEnabled) return { products: [], nextCursor: null, done: true };
   const entries = cursorKey
-    ? await matchAll(field, value)                                   // الصفحات التالية: نسحب المطابق مرة ونقسّمه محليًا
-    : await matchEntries(field, value, pageSize + 1);                // الصفحة الأولى: طلب صغير وسريع
+    ? await matchAll(field, value)
+    : await matchEntries(field, value, pageSize + 1);
   return buildPage(entries, pageSize, cursorKey);
 }
 
@@ -376,7 +372,6 @@ async function _pullFromFirebase(force) {
     ]);
     const rawCategories = results[0], settings = results[1], rawAds = results[2];
 
-    // null = حُذفت كل العناصر من لوحة التحكم → نفرّغ النسخة المحلية أيضًا
     LS.set(DB_KEYS.categories, JSON.stringify(firebaseValueToArray(rawCategories)));
     LS.set(DB_KEYS.ads, JSON.stringify(firebaseValueToArray(rawAds)));
     if (settings !== null) LS.set(DB_KEYS.settings, JSON.stringify(settings || {}));
@@ -402,7 +397,6 @@ async function _pullFromFirebase(force) {
   }
 }
 
-/* لا نُطلق الأحداث قبل انتهاء كل السكربتات المؤجلة (DOMContentLoaded) */
 let _domReady = document.readyState === "complete";
 const _queuedEvents = [];
 if (!_domReady) {
@@ -505,7 +499,6 @@ function writeProductsLocal(list) {
 }
 
 const Store = {
-  // دالة العداد السريع والخفيف
   getProductsCount() {
     const metaCount = LS.get(DB_KEYS.productsCount);
     if (metaCount !== null && metaCount !== undefined) {
@@ -520,7 +513,6 @@ const Store = {
     return 0;
   },
 
-  // جلب إجمالي عدد المنتجات من سيرفر Firebase بطلب خفيف دون جلب محتوى المنتجات
   async fetchRemoteProductsCount() {
     if (!firebaseEnabled) return this.getProductsCount();
     try {
@@ -531,7 +523,7 @@ const Store = {
         return count;
       }
     } catch (e) {
-      /* في حال عدم دعم shallow، نعتمد على المخزن محلياً */
+      /* في حال عدم توفر shallow، نعتمد على الكاش */
     }
     return this.getProductsCount();
   },
@@ -565,14 +557,60 @@ const Store = {
   },
 
   getProducts() {
-    if (_productsMem) return firebaseValueToArray(_productsMem);
-    return firebaseValueToArray(parseJSON(LS.get(DB_KEYS.products), []));
+    let prods = [];
+    if (_productsMem) prods = firebaseValueToArray(_productsMem);
+    else prods = firebaseValueToArray(parseJSON(LS.get(DB_KEYS.products), []));
+
+    // ضمان وجود الحقلين id و objectID متطابقين في جميع المنتجات
+    return prods.map(p => {
+      if (!p) return p;
+      const realId = String(p.id || p.objectID || "");
+      if (!p.id || !p.objectID) {
+        return Object.assign({}, p, { id: realId, objectID: realId });
+      }
+      return p;
+    });
   },
+
   saveProducts(list) {
-    writeProductsLocal(list);
-    syncNodeToFirebase(DB_KEYS.products, list);
+    // توحيد الحقول id و objectID قبل الحفظ محلياً وفي Firebase
+    const normalized = (list || []).map((p, idx) => {
+      if (!p) return p;
+      const realId = String(p.id || p.objectID || uid("prd"));
+      return Object.assign({}, p, { id: realId, objectID: realId });
+    });
+    writeProductsLocal(normalized);
+    syncNodeToFirebase(DB_KEYS.products, normalized);
   },
-  getProduct(id) { return this.getProducts().find(p => p.id === id) || null; },
+
+  // البحث المرن عن المنتج باستخدام id أو objectID كنص
+  getProduct(id) { 
+    if (id === null || id === undefined) return null;
+    const targetId = String(id).trim();
+    return this.getProducts().find(p => p && String(p.id || p.objectID).trim() === targetId) || null; 
+  },
+
+  // تعديل المنتج بدقة ومطابقة المعرفات
+  updateProduct(id, patch) {
+    if (id === null || id === undefined) return;
+    const targetId = String(id).trim();
+    const list = this.getProducts().map(p => {
+      if (!p) return p;
+      const currentId = String(p.id || p.objectID).trim();
+      if (currentId === targetId) {
+        return Object.assign({}, p, patch, { id: targetId, objectID: targetId });
+      }
+      return p;
+    });
+    this.saveProducts(list);
+  },
+
+  // حذف المنتج بمرونة
+  deleteProduct(id) { 
+    if (id === null || id === undefined) return;
+    const targetId = String(id).trim();
+    this.saveProducts(this.getProducts().filter(p => p && String(p.id || p.objectID).trim() !== targetId)); 
+  },
 
   getFieldCache(name) {
     return firebaseValueToArray(parseJSON(LS.get("ws_products_filter_" + name), []));
@@ -646,18 +684,27 @@ const Store = {
   },
 
   _localPage(all, pageSize, cursorKey) {
-    const start = cursorKey ? Math.max(0, all.findIndex(function (p) { return p.id === cursorKey; }) + 1) : 0;
+    const start = cursorKey ? Math.max(0, all.findIndex(function (p) { return String(p.id || p.objectID) === String(cursorKey); }) + 1) : 0;
     const products = all.slice(start, start + pageSize);
     const done = start + products.length >= all.length;
-    return { products: products, nextCursor: done || !products.length ? null : products[products.length - 1].id, done: done };
+    const last = products.length ? (products[products.length - 1].id || products[products.length - 1].objectID) : null;
+    return { products: products, nextCursor: done || !products.length ? null : last, done: done };
   },
 
   _cacheLoadedProducts(newProducts) {
     if (!newProducts || !newProducts.length) return;
     const byId = new Map();
-    this.getProducts().forEach(p => { if (p && p.id) byId.set(p.id, p); });
+    this.getProducts().forEach(p => { 
+      if (p) {
+        const idKey = String(p.id || p.objectID || "");
+        if (idKey) byId.set(idKey, p);
+      }
+    });
     newProducts.forEach(p => {
-      if (p && p.id) { byId.delete(p.id); byId.set(p.id, p); }
+      if (p) {
+        const idKey = String(p.id || p.objectID || "");
+        if (idKey) { byId.delete(idKey); byId.set(idKey, p); }
+      }
     });
     let list = Array.from(byId.values());
     if (list.length > PRODUCT_CACHE_LIMIT) {
@@ -689,18 +736,19 @@ const Store = {
 
   async loadProductById(id, forceRefresh) {
     if (!id) return null;
+    const targetId = String(id).trim();
     if (forceRefresh) _wholeProducts = null;
-    const local = this.getProduct(id);
+    const local = this.getProduct(targetId);
     if (local && !forceRefresh) return local;
     let fetched = null;
     try {
-      fetched = await dedupe("prod:" + id, function () { return fetchProductByIdFromFirebase(id); });
+      fetched = await dedupe("prod:" + targetId, function () { return fetchProductByIdFromFirebase(targetId); });
     } catch (error) {
       console.error("Firebase product fetch error:", error);
       return local || null;
     }
     if (!fetched) {
-      if (local && forceRefresh) writeProductsLocal(this.getProducts().filter(function (p) { return p.id !== id; }));
+      if (local && forceRefresh) this.deleteProduct(targetId);
       return null;
     }
     this._cacheLoadedProducts([fetched]);
@@ -718,15 +766,17 @@ const Store = {
     try { products = await fetchAllProductsFromFirebase(); }
     catch (error) { console.error("Firebase all-products fetch error:", error); return this.getProducts(); }
     if (products === null) return this.getProducts();
-    writeProductsLocal(products);
+    this.saveProducts(products);
     LS.set("ws_products_all_time", String(Date.now()));
     return products;
   },
 
   addProduct(prod) {
     const list = this.getProducts();
+    const generatedId = uid("prd");
     const item = Object.assign({
-      id: uid("prd"),
+      id: generatedId,
+      objectID: generatedId,
       barcode: "",
       sku: "",
       description: "",
@@ -743,16 +793,14 @@ const Store = {
       sizes: [],
       inventory: {}
     }, prod);
+    
+    // تأكيد تعيين المعرف
+    if (!item.id) item.id = generatedId;
+    item.objectID = item.id;
+
     list.unshift(item);
     this.saveProducts(list);
     return item;
-  },
-  updateProduct(id, patch) {
-    const list = this.getProducts().map(p => p.id === id ? Object.assign({}, p, patch) : p);
-    this.saveProducts(list);
-  },
-  deleteProduct(id) { 
-    this.saveProducts(this.getProducts().filter(p => p.id !== id)); 
   },
 
   hasVariantMatrix(product) {
