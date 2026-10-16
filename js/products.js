@@ -1,6 +1,7 @@
 /* ==========================================================================
    products.js (معمارية هجينة ذكية: محلي / Algolia بحسب الحد في config.js)
    + حفظ التمرير + نفاد الكمية الذكي + الصور التراكمية + إصلاح فخ كاش البداية
+   + بحث متجاوب ولحظي يدعم كيبورد الموبايل والحواسيب
    ========================================================================== */
 
 function productMediaHtml(product) {
@@ -105,7 +106,7 @@ function renderProductCard(product) {
 async function quickAddToCart(productId) {
   let product = Store.getProduct(productId);
   if (!product && typeof shopState !== "undefined" && shopState.pagination && shopState.pagination.products) {
-    product = shopState.pagination.products.find(function(p) { return p.id === productId; });
+    product = shopState.pagination.products.find(function(p) { return String(p.id || p.objectID) === String(productId); });
   }
   if (!product) {
     product = await Store.loadProductById(productId);
@@ -285,6 +286,7 @@ async function queryAlgoliaShop(pageToFetch) {
   const result = {
     products: (data.hits || []).map(h => ({
       id: h.objectID || h.id,
+      objectID: h.objectID || h.id,
       name: h.name,
       price: h.price,
       categoryId: h.categoryId,
@@ -366,10 +368,11 @@ async function fetchNextShopBatch() {
     const result = await queryAlgoliaShop(page.page);
     const added = result.products || [];
 
-    const seen = new Set(page.products.map(p => p.id));
+    const seen = new Set(page.products.map(p => String(p.id || p.objectID)));
     added.forEach(p => {
-      if (p && !seen.has(p.id)) {
-        seen.add(p.id);
+      const pKey = String(p.id || p.objectID);
+      if (p && !seen.has(pKey)) {
+        seen.add(pKey);
         page.products.push(p);
       }
     });
@@ -473,19 +476,51 @@ async function initShopPage() {
 
   if (searchInput) {
     searchInput.value = shopState.search;
-    searchInput.placeholder = "ابحث واضغط Enter (3 أحرف على الأقل)...";
-    
-    searchInput.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const val = searchInput.value.trim();
-        if (val.length > 0 && val.length < 3) {
-          showToast("يرجى كتابة 3 أحرف على الأقل للبحث", "error");
-          return;
-        }
-        shopState.search = val;
-        renderShopResults({ reset: true });
+    searchInput.placeholder = "ابحث عن أي منتج...";
+
+    let searchTimer = null;
+    const executeSearch = (val) => {
+      val = (val || "").trim();
+      if (val === shopState.search) return;
+      if (val.length > 0 && val.length < 3) return;
+      shopState.search = val;
+      renderShopResults({ reset: true });
+    };
+
+    // 1. بحث تلقائي متجاوب بعد 400ms من التوقف عن الكتابة
+    searchInput.addEventListener("input", function () {
+      clearTimeout(searchTimer);
+      const val = searchInput.value.trim();
+
+      // إعادة عرض كل المنتجات فور مسح الحقل
+      if (val === "") {
+        executeSearch("");
+        return;
       }
+
+      // تشغيل البحث إذا كان النص 3 أحرف فأكثر
+      if (val.length >= 3) {
+        searchTimer = setTimeout(() => {
+          executeSearch(val);
+        }, 400);
+      }
+    });
+
+    // 2. دعم زر الإدخال في الحواسيب وكيبورد الهاتف
+    searchInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.keyCode === 13 || e.which === 13) {
+        e.preventDefault();
+        clearTimeout(searchTimer);
+        searchInput.blur(); // إغلاق كيبورد الموبايل تلقائياً لإظهار النتائج
+        executeSearch(searchInput.value);
+      }
+    });
+
+    // 3. دعم زر البحث المباشر في لوحات مفاتيح أندرويد وآيفون
+    searchInput.addEventListener("search", function () {
+      clearTimeout(searchTimer);
+      searchInput.blur();
+      executeSearch(searchInput.value);
     });
   }
 
