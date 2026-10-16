@@ -1,7 +1,6 @@
 /* ==========================================================================
-   products.js (معمارية هجينة ذكية: محلي / Algolia بحسب الحد في config.js)
-   + حفظ التمرير + نفاد الكمية الذكي + الصور التراكمية + إصلاح فخ كاش البداية
-   + بحث متجاوب ولحظي يدعم كيبورد الموبايل والحواسيب
+   products.js (معمارية هجينة معتمدة على الفهرس المصغر حتى 2000 منتج)
+   + فرز وترتيب لحظي في ذاكرة الهاتف + بحث سريع يدعم كيبورد الموبايل
    ========================================================================== */
 
 function productMediaHtml(product) {
@@ -77,22 +76,24 @@ function renderProductCard(product) {
   const actionTitle = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات والمواصفات" : "أضف للسلة");
   const actionLabel = outOfStock ? "غير متوفر" : (hasOptions ? "اختر الخيارات" : "أضف للسلة");
 
+  const productId = product.id || product.objectID;
+
   return (
     '<article class="product-card">' +
-      '<a href="product.html?id=' + encodeURIComponent(product.id) + '" class="product-media" data-product-link="1">' +
+      '<a href="product.html?id=' + encodeURIComponent(productId) + '" class="product-media" data-product-link="1">' +
         productMediaHtml(product) +
         badges.join("") +
       "</a>" +
       '<div class="product-body">' +
         '<span class="product-cat">' + escapeHtml(Store.getCategoryName(product.categoryId)) + "</span>" +
-        '<h3 class="product-name"><a href="product.html?id=' + encodeURIComponent(product.id) + '" data-product-link="1">' + escapeHtml(product.name) + "</a></h3>" +
+        '<h3 class="product-name"><a href="product.html?id=' + encodeURIComponent(productId) + '" data-product-link="1">' + escapeHtml(product.name) + "</a></h3>" +
         colorsHtml +
         '<div class="product-foot">' +
           '<span class="price">' + formatPrice(product.price) + "</span>" +
           '<div class="product-actions">' +
             '<button class="btn btn-primary" ' + (outOfStock ? "disabled" : "") +
               ' title="' + actionTitle + '"' +
-              ' onclick="quickAddToCart(' + jsStr(product.id) + ')">' +
+              ' onclick="quickAddToCart(' + jsStr(productId) + ')">' +
               actionIcon +
             '<span class="btn-label">' + actionLabel + "</span>" +
             "</button>" +
@@ -138,14 +139,12 @@ function renderGridInto(containerId, products, emptyMessage) {
   }
 }
 
-// حجم الدفعة للترقيم
 const SHOP_PAGE_SIZE = 24;
 const shopState = {
   search: "", categoryId: "all", sort: "default", filterMode: "",
   pagination: { page: 0, nbPages: 1, loading: false, done: false, products: [] }
 };
 
-// حفظ موضع التمرير عند النقر على بطاقة منتج
 function setupScrollPreservation() {
   document.addEventListener("click", function(e) {
     const link = e.target.closest("a[data-product-link='1'], a[href*='product.html']");
@@ -213,33 +212,34 @@ function ensureShopPaginationUI() {
   grid.parentNode.insertBefore(wrap, grid.nextSibling);
 }
 
-// دالة جلب المنتجات: هجينة تقرر بين المحلي وAlgolia بحسب حجم المتجر ومفاتيحه
-async function queryAlgoliaShop(pageToFetch) {
+// دالة جلب المنتجات: تقرر بين الفهرس المصغر أو Algolia للمتاجر الضخمة (+2000)
+async function queryProductsUnified(pageToFetch) {
   const cfg = typeof STORE_CONFIG !== "undefined" ? STORE_CONFIG : {};
   const isAlgoliaReady = cfg.algoliaAppId && !cfg.algoliaAppId.startsWith("YOUR_") && cfg.algoliaSearchKey;
-  const algoliaThreshold = (typeof cfg.algoliaThreshold === "number") ? cfg.algoliaThreshold : 400;
+  const algoliaThreshold = (typeof cfg.algoliaThreshold === "number") ? cfg.algoliaThreshold : 2000;
 
-  // جلب العداد الحقيقي بدقة (سواء من الكاش أو عن بُعد)
   let totalProducts = (typeof Store !== "undefined" && typeof Store.getProductsCount === "function")
     ? Store.getProductsCount()
     : 0;
 
-  // إذا كان العداد غير محسوب أو يساوي فقط كاش الصفحة الأولى (<= 24)، نستعلم عن العدد الفعلي عن بُعد بطلب خفيف
   if (totalProducts <= 24 && typeof Store !== "undefined" && typeof Store.fetchRemoteProductsCount === "function") {
     try {
       totalProducts = await Store.fetchRemoteProductsCount();
     } catch (e) {
-      totalProducts = (Store.getProducts() || []).length;
+      totalProducts = (Store.getMiniIndex() || []).length;
     }
   }
 
-  const shouldUseAlgolia = isAlgoliaReady && (totalProducts > algoliaThreshold);
-
-  if (!shouldUseAlgolia) {
-    return queryFallbackStore(pageToFetch);
+  // إذا تجاوز 2000 منتج ومفاتيح Algolia جاهزة
+  if (isAlgoliaReady && totalProducts > algoliaThreshold) {
+    return queryAlgoliaDirect(pageToFetch, cfg);
   }
 
-  // --- في حال كان المتجر كبيراً وتخطى الحد الفاصل ومفاتيح Algolia جاهزة ---
+  // المتاجر العادية والمتوسطة (حتى 2000 منتج) تعمل محلياً وفورياً
+  return queryFallbackStore(pageToFetch);
+}
+
+async function queryAlgoliaDirect(pageToFetch, cfg) {
   let targetIndex = cfg.algoliaIndexName || "products";
   if (shopState.sort === "price-asc") targetIndex += "_price_asc";
   else if (shopState.sort === "price-desc") targetIndex += "_price_desc";
@@ -253,14 +253,6 @@ async function queryAlgoliaShop(pageToFetch) {
   if (shopState.filterMode === "featured") filters.push("featured:true");
   else if (shopState.filterMode === "offer") filters.push("isOffer:true");
   else if (shopState.filterMode === "new") filters.push("isNew:true");
-
-  const cacheKey = "algolia_c_" + targetIndex + "_" + (shopState.search || "") + "_" + filters.join(",") + "_" + pageToFetch;
-  try {
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  } catch (e) {}
 
   const url = `https://${cfg.algoliaAppId}-dsn.algolia.net/1/indexes/${encodeURIComponent(targetIndex)}/query`;
   const body = {
@@ -283,7 +275,7 @@ async function queryAlgoliaShop(pageToFetch) {
   if (!response.ok) throw new Error("فشل طلب البحث من Algolia");
   const data = await response.json();
 
-  const result = {
+  return {
     products: (data.hits || []).map(h => ({
       id: h.objectID || h.id,
       objectID: h.objectID || h.id,
@@ -298,58 +290,65 @@ async function queryAlgoliaShop(pageToFetch) {
       isOffer: !!h.isOffer,
       isNew: !!h.isNew,
       available: h.available !== false,
-      stock: h.stock || 1,
-      inventory: h.inventory || (h.available !== false ? { "_||_": (Number(h.stock) || 1) } : {})
+      stock: h.stock || 1
     })),
     nbPages: data.nbPages || 1
   };
-
-  try {
-    sessionStorage.setItem(cacheKey, JSON.stringify(result));
-  } catch (e) {}
-
-  return result;
 }
 
-// دالة الفلترة والترتيب المحلي الفوري مع التخلص التام من فخ الـ 18 منتجاً
+// دالة الفهرس المصغر فائق السرعة (بحث، فلترة أقسام، ترتيب السعر)
 async function queryFallbackStore(pageToFetch) {
-  let pool = Store.getProducts() || [];
+  let pool = (typeof Store.getMiniIndex === "function") ? Store.getMiniIndex() : Store.getProducts();
 
   const totalExpected = (typeof Store !== "undefined" && typeof Store.getProductsCount === "function")
     ? Store.getProductsCount()
     : 0;
 
-  // إذا كان الكاش فارغاً، أو يحتوي فقط على عينات البداية (<= 24) وهناك منتجات أخرى في المتجر
+  // إذا لم نقم بمزامنة المنتجات بعد وكانت القائمة فارغة أو صغيرة جداً
   if (pool.length === 0 || (totalExpected > 0 && pool.length < totalExpected) || (pool.length <= 24 && !sessionStorage.getItem("ws_full_synced"))) {
     if (typeof Store.loadAllProductsFromFirebase === "function") {
       try {
         const full = await Store.loadAllProductsFromFirebase(true);
         if (full && full.length) {
-          pool = full;
+          pool = Store.getMiniIndex();
           sessionStorage.setItem("ws_full_synced", "1");
         }
       } catch (e) {
-        pool = Store.getProducts() || [];
+        pool = Store.getMiniIndex();
       }
     }
   }
 
   let list = (pool || []).filter(p => p && Store.isProductAvailable(p));
+
+  // 1. تصفية القسم
   if (shopState.categoryId && shopState.categoryId !== "all") {
     list = list.filter(p => p.categoryId === shopState.categoryId);
   }
+
+  // 2. تصفية التبويبات الخاصة
   if (shopState.filterMode === "featured") list = list.filter(p => p.featured);
   else if (shopState.filterMode === "offer") list = list.filter(p => p.isOffer);
   else if (shopState.filterMode === "new") list = list.filter(p => p.isNew);
 
+  // 3. البحث النصي المرن (بالاسم والباركود)
   if (shopState.search) {
-    const q = shopState.search.toLowerCase();
-    list = list.filter(p => (p.name || "").toLowerCase().includes(q) || (p.barcode && String(p.barcode).toLowerCase().includes(q)));
+    const q = shopState.search.toLowerCase().trim();
+    list = list.filter(p => {
+      const name = (p.name || "").toLowerCase();
+      const barcode = p.barcode ? String(p.barcode).toLowerCase() : "";
+      return name.includes(q) || barcode.includes(q);
+    });
   }
 
-  if (shopState.sort === "price-asc") list.sort((a,b) => a.price - b.price);
-  else if (shopState.sort === "price-desc") list.sort((a,b) => b.price - a.price);
+  // 4. الترتيب اللحظي في الذاكرة
+  if (shopState.sort === "price-asc") {
+    list.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+  } else if (shopState.sort === "price-desc") {
+    list.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+  }
 
+  // 5. التقطيع إلى صفحات دفعات (24 منتجاً لكل دفعة)
   const start = pageToFetch * SHOP_PAGE_SIZE;
   const sliced = list.slice(start, start + SHOP_PAGE_SIZE);
   return {
@@ -365,7 +364,7 @@ async function fetchNextShopBatch() {
   showShopLoading(true);
 
   try {
-    const result = await queryAlgoliaShop(page.page);
+    const result = await queryProductsUnified(page.page);
     const added = result.products || [];
 
     const seen = new Set(page.products.map(p => String(p.id || p.objectID)));
@@ -455,11 +454,8 @@ async function initShopPage() {
   if (!grid) return;
 
   setupScrollPreservation();
-
-  // عرض بطاقات التحميل الهيكلية فوراً
   grid.innerHTML = renderSkeletonCards(8);
 
-  // ضمان اكتمال تحميل الأقسام من Firebase في الدخول المباشر
   if (typeof Store !== "undefined" && typeof Store.loadCategories === "function") {
     if (!Store.getCategories() || Store.getCategories().length === 0) {
       try { await Store.loadCategories(); } catch (e) {}
@@ -487,18 +483,15 @@ async function initShopPage() {
       renderShopResults({ reset: true });
     };
 
-    // 1. بحث تلقائي متجاوب بعد 400ms من التوقف عن الكتابة
     searchInput.addEventListener("input", function () {
       clearTimeout(searchTimer);
       const val = searchInput.value.trim();
 
-      // إعادة عرض كل المنتجات فور مسح الحقل
       if (val === "") {
         executeSearch("");
         return;
       }
 
-      // تشغيل البحث إذا كان النص 3 أحرف فأكثر
       if (val.length >= 3) {
         searchTimer = setTimeout(() => {
           executeSearch(val);
@@ -506,17 +499,15 @@ async function initShopPage() {
       }
     });
 
-    // 2. دعم زر الإدخال في الحواسيب وكيبورد الهاتف
     searchInput.addEventListener("keydown", function (e) {
       if (e.key === "Enter" || e.keyCode === 13 || e.which === 13) {
         e.preventDefault();
         clearTimeout(searchTimer);
-        searchInput.blur(); // إغلاق كيبورد الموبايل تلقائياً لإظهار النتائج
+        searchInput.blur();
         executeSearch(searchInput.value);
       }
     });
 
-    // 3. دعم زر البحث المباشر في لوحات مفاتيح أندرويد وآيفون
     searchInput.addEventListener("search", function () {
       clearTimeout(searchTimer);
       searchInput.blur();
