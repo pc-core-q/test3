@@ -8,7 +8,7 @@ const STORE_CONFIG = {
   dataVersion: 2,
 
   // اسم المتجر ووصفه — تظهر في الهيدر والفوتر وصفحة "من نحن"
-  storeName: "احمد مشتاق",
+  storeName: "Test",
   storeTagline: "تجربة تسوق بسيطة، واضحة ومباشرة",
   storeDescription: "متجر إلكتروني يقدم أفضل المنتجات بطلب مباشر عبر واتساب.",
 
@@ -25,35 +25,35 @@ const STORE_CONFIG = {
   currencySymbol: "د.ع",
 
   // === Firebase Web App / Authentication ===
-  firebaseApiKey: "AIzaSyCk9jBwXYOlG9ISDEOhKSIME_DqHFrqDOI",
-  firebaseAuthDomain: "ahmed-meshtaq.firebaseapp.com",
-  firebaseProjectId: "ahmed-meshtaq",
-  firebaseStorageBucket: "ahmed-meshtaq.firebasestorage.app",
-  firebaseMessagingSenderId: "245954949283",
-  firebaseAppId: "1:245954949283:web:0fb6adfcce53e769fe4f16",
+  firebaseApiKey: "AIzaSyAnAHTDxGlWwBfe9Ta8ttQ8QZWLA5ZNYw8",
+  firebaseAuthDomain: "test3-2a6de.firebaseapp.com",
+  firebaseProjectId: "test3-2a6de",
+  firebaseStorageBucket: "test3-2a6de.firebasestorage.app",
+  firebaseMessagingSenderId: "44087547093",
+  firebaseAppId: "1:44087547093:web:91a03c47e7810869fbfe5c",
   
   // حسابات الأدمن المسموح لها بدخول لوحة التحكم
   adminEmails: ["a@email.com"],
 
   // === Firebase Realtime Database ===
-  firebaseDatabaseURL: "https://ahmed-meshtaq-default-rtdb.europe-west1.firebasedatabase.app/",
+  firebaseDatabaseURL: "https://test3-2a6de-default-rtdb.europe-west1.firebasedatabase.app/",
 
   // === ImgBB (رفع الصور) ===
   imgbbApiKey: "820a1a52d1b835874a9200fe7d3bb6b3",
 
   // === ImageKit (تحسين وضغط الصور عبر CDN) ===
-  imageKitEndpoint: "https://ik.imagekit.io/i4d9yeuxc/",
+  imageKitEndpoint: "https://ik.imagekit.io/test3wf",
 
   // === Algolia Search Engine ===
-  algoliaAppId: "",
-  algoliaSearchKey: "",       // مفتاح البحث فقط (آمن للواجهة العامة)
-  algoliaAdminKey: "",         // مفتاح الإدارة للوحة التحكم فقط
-  algoliaIndexName: "",
+  algoliaAppId: "OMN0MLR7PE",
+  algoliaSearchKey: "12af33f3ef65f6c90459f089b7301d6f",       // مفتاح البحث فقط (آمن للواجهة العامة)
+  algoliaAdminKey: "44dc546894c94620675e5a9112264cc1",         // مفتاح الإدارة للوحة التحكم فقط
+  algoliaIndexName: "products",
 
   // === ضوابط المعمارية الهجينة والمنتجات ===
   // الحد الفاصل للتحويل التلقائي إلى Algolia:
   // ما دون هذا الرقم يعمل محلياً ومجاناً، وما فوقه يتحول تلقائياً إلى خوادم Algolia
-  algoliaThreshold: 1500,
+  algoliaThreshold: 2000,
 
   // الحد الأقصى للمنتجات المستوردة من الإكسل
   maxExcelImportCount: 100                       
