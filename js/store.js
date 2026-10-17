@@ -3,7 +3,7 @@
    مع دعم الفهرس المصغر (Mini-Index) للمتاجر حتى 2000 منتج + المزامنة السحابية.
    ========================================================================== */
 
-const META_CACHE_MS = 15 * 60 * 1000;
+const META_CACHE_MS = 30 * 60 * 1000;   // مدة الكاش: 30 دقيقة (الفهرس يُفحص برقم نسخة صغير جداً، ولا يُنزَّل إلا إذا تغيّر)
 const QUERY_CACHE_MS = 2 * 60 * 1000;
 const PRODUCT_CACHE_LIMIT = 5000;
 const FETCH_TIMEOUT_MS = 15000;
@@ -18,8 +18,12 @@ const DB_KEYS = {
   session: "ws_admin_session",
   seeded: "ws_seeded_v1",
   ads: "ws_ads",
-  productsCount: "ws_products_count_meta"
+  productsCount: "ws_products_count_meta",
+  index: "ws_index"          // عقدة Firebase: { v: رقم النسخة, items: [سجلات خفيفة لكل المنتجات] }
 };
+const IDX_ITEMS = "ws_index_items";      // نسخة الفهرس المحلية (JSON)
+const IDX_V = "ws_index_v";              // رقم نسخة الفهرس المحلي
+const IDX_CHECKED = "ws_index_checked";  // آخر وقت فُحص فيه رقم النسخة من الخادم
 
 const LS = (function () {
   let ok = true;
@@ -248,11 +252,15 @@ async function matchAll(field, value) {
   return entries;
 }
 
+/* يكتب عقدة كاملة إلى Firebase ويعيد Promise<boolean>:
+   true = نجحت الكتابة (أو الوضع المحلي بلا Firebase) · false = فشلت (الخطأ يُسجَّل في Console).
+   لا يرفع استثناء أبداً، فالمستدعون الذين يتجاهلون النتيجة لا يتأثرون. */
 function syncNodeToFirebase(nodeKey, data) {
-  if (!firebaseEnabled) return;
-  if (!database) { console.warn("Firebase SDK غير محمّل — لا يمكن الكتابة إلى " + nodeKey); return; }
-  database.ref(nodeKey).set(data).catch(error => {
+  if (!firebaseEnabled) return Promise.resolve(true);
+  if (!database) { console.warn("Firebase SDK غير محمّل — لا يمكن الكتابة إلى " + nodeKey); return Promise.resolve(false); }
+  return database.ref(nodeKey).set(data).then(function () { return true; }).catch(function (error) {
     console.error("Firebase Sync Error for " + nodeKey + ":", error);
+    return false;
   });
 }
 
@@ -396,7 +404,8 @@ function seedIfNeeded() {
       DB_KEYS.ads,
       "last_meta_pull_time",
       "ws_products_all_time",
-      DB_KEYS.productsCount
+      DB_KEYS.productsCount,
+      IDX_ITEMS, IDX_V, IDX_CHECKED
     ];
     LS.keys().forEach(function (key) {
       if (key && (key.indexOf("ws_products_") === 0 || keysToRemove.indexOf(key) !== -1)) LS.remove(key);
@@ -446,7 +455,8 @@ function sumInventory(inventory) {
 }
 
 let _productsMem = null;
-let _miniIndexMem = null;
+let _productsFullyLoaded = false;          // true بعد أول تحميل كامل ناجح للمنتجات من Firebase في هذه الصفحة
+let _lastProductsWrite = Promise.resolve(true);
 const _inflight = {};
 function dedupe(key, fn) {
   if (_inflight[key]) return _inflight[key];
@@ -455,39 +465,103 @@ function dedupe(key, fn) {
   return p;
 }
 
-// بناء وتحديث الفهرس المصغر الخفيف جداً تلقائياً
-function buildMiniRecord(p) {
-  if (!p) return null;
-  const pId = String(p.id || p.objectID || "");
-  return {
-    id: pId,
-    objectID: pId,
-    name: p.name || "",
-    price: Number(p.price) || 0,
-    categoryId: p.categoryId || "",
-    image: p.image || null,
-    barcode: p.barcode || "",
-    available: p.available !== false,
-    stock: p.stock || 1,
-    featured: !!p.featured,
-    isOffer: !!p.isOffer,
-    isNew: !!p.isNew,
-    colors: Array.isArray(p.colors) ? p.colors : [],
-    sizes: Array.isArray(p.sizes) ? p.sizes : [],
-    variants: Array.isArray(p.variants) ? p.variants : []
-  };
+// إجمالي المخزون الحقيقي للمنتج: من شبكة inventory إن وُجدت ألوان/مقاسات، وإلا من stock
+function totalStockOf(p) {
+  if (!p) return 0;
+  const hasMatrix = (Array.isArray(p.colors) && p.colors.length > 0) || (Array.isArray(p.sizes) && p.sizes.length > 0);
+  return hasMatrix && p.inventory ? sumInventory(p.inventory) : (Number(p.stock) || 0);
 }
 
-function writeProductsLocal(list) {
+/* isFullSnapshot=true فقط عندما تكون القائمة هي كل منتجات المتجر (تحميل كامل / حفظ من الأدمن).
+   الدمج الجزئي (_cacheLoadedProducts) لا يلمس العدّاد وإلا اعتُبر عدد المنتجات المحمّلة هو إجمالي المتجر. */
+function writeProductsLocal(list, isFullSnapshot) {
   if (Array.isArray(list)) {
-    LS.set(DB_KEYS.productsCount, String(list.length));
-    const mini = list.map(buildMiniRecord).filter(Boolean);
-    if (LS.set(DB_KEYS.miniIndex, JSON.stringify(mini))) _miniIndexMem = null;
-    else _miniIndexMem = mini;
+    if (isFullSnapshot) {
+      LS.set(DB_KEYS.productsCount, String(list.length));
+      LS.set("ws_products_count_time", String(Date.now()));
+    }
   }
   if (LS.set(DB_KEYS.products, JSON.stringify(list))) _productsMem = null;
   else _productsMem = list;
 }
+
+/* ===================== فهرس المنتجات الخفيف (ws_index) =====================
+   سجل صغير لكل منتج (الاسم/السعر/القسم/الصورة/التوفر/الأعلام) يكفي لعرض البطاقات والبحث والفرز
+   في المتصفح على كل المنتجات دون تنزيل تفاصيلها. الأدمن يكتبه مع كل حفظ للمنتجات (عملية واحدة ذرّية)،
+   والزائر يفحص رقم النسخة (بضعة بايتات) كل 30 دقيقة ولا يُنزّل الفهرس إلا إن تغيّر. */
+const AR_DIGITS = "\u0660\u0661\u0662\u0663\u0664\u0665\u0666\u0667\u0668\u0669";
+function normalizeSearch(str) {
+  return String(str === null || str === undefined ? "" : str).toLowerCase()
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .replace(/[\u0623\u0625\u0622\u0671]/g, "\u0627")
+    .replace(/\u0649/g, "\u064A")
+    .replace(/\u0629/g, "\u0647")
+    .replace(/\u0624/g, "\u0648")
+    .replace(/\u0626/g, "\u064A")
+    .replace(/[\u0660-\u0669]/g, function (d) { return String(AR_DIGITS.indexOf(d)); })
+    .replace(/\s+/g, " ").trim();
+}
+
+function buildIndexRecord(p) {
+  if (!p) return null;
+  const id = String(p.id || p.objectID || "");
+  if (!id) return null;
+  const r = { id: id, name: p.name || "", price: Number(p.price) || 0, stock: totalStockOf(p) };
+  if (p.categoryId) r.categoryId = p.categoryId;
+  if (p.image) r.image = p.image;
+  if (p.barcode) r.barcode = String(p.barcode);
+  if (p.available === false) r.available = false;
+  if (p.featured) r.featured = true;
+  if (p.isOffer) r.isOffer = true;
+  if (p.isNew) r.isNew = true;
+  if (Array.isArray(p.colors) && p.colors.length) r.colors = p.colors.map(function (c) { return { name: (c && c.name) || "", hex: (c && c.hex) || "" }; });
+  if (Array.isArray(p.sizes) && p.sizes.length) r.sizes = p.sizes;
+  if (Array.isArray(p.variants) && p.variants.length) r.vc = p.variants.length;
+  return r;
+}
+
+function buildIndexPayload(list) {
+  return { v: Date.now(), items: (list || []).map(buildIndexRecord).filter(Boolean) };
+}
+
+function hydrateIndexRecord(r) {
+  if (!r || !r.id) return null;
+  const vc = Number(r.vc) || 0;
+  const name = r.name || "", barcode = r.barcode || "";
+  return {
+    id: r.id, objectID: r.id, name: name, price: Number(r.price) || 0,
+    categoryId: r.categoryId || "", image: r.image || null, barcode: barcode,
+    available: r.available !== false, stock: Number(r.stock) || 0,
+    featured: !!r.featured, isOffer: !!r.isOffer, isNew: !!r.isNew,
+    colors: Array.isArray(r.colors) ? r.colors : [], sizes: Array.isArray(r.sizes) ? r.sizes : [],
+    variants: vc ? new Array(vc).fill(0) : [],
+    _k: normalizeSearch(name + " " + barcode),
+    _n: normalizeSearch(name)
+  };
+}
+
+let _indexMem = null;   // سجلات الفهرس بعد التهيئة (نفس المصفوفة تُعاد في كل استدعاء)
+function storeIndexLocal(payload) {
+  const raw = JSON.stringify(payload.items);
+  let ok = LS.set(IDX_ITEMS, raw);
+  if (!ok) { LS.remove(DB_KEYS.products); ok = LS.set(IDX_ITEMS, raw); }   // الكاش القديم الكبير قد يمنع التخزين
+  if (ok) { LS.set(IDX_V, String(payload.v)); LS.set(IDX_CHECKED, String(Date.now())); }
+  _indexMem = payload.items.map(hydrateIndexRecord).filter(Boolean);
+}
+
+function syncProductsAndIndex(list, payload) {
+  if (!firebaseEnabled) return Promise.resolve(true);
+  if (!database) { console.warn("Firebase SDK غير محمّل — لا يمكن حفظ المنتجات."); return Promise.resolve(false); }
+  const upd = {};
+  upd[DB_KEYS.products] = list;
+  upd[DB_KEYS.index] = payload;
+  return database.ref().update(upd).then(function () { return true; }).catch(function (error) {
+    console.error("Firebase products+index sync error (غالباً Rules ws_index ناقصة):", error);
+    // لا نمنع حفظ المنتجات إن تعذّر الفهرس فقط (يظهر تنبيه في لوحة الأدمن لإضافة القاعدة)
+    return syncNodeToFirebase(DB_KEYS.products, list);
+  });
+}
+
 
 const Store = {
   getProductsCount() {
@@ -504,6 +578,12 @@ const Store = {
     return 0;
   },
 
+  // هل يحتاج عدّاد المنتجات (إجمالي المتجر) لتحديث؟ (كل 15 دقيقة كحد أقصى)
+  isProductsCountStale() {
+    const t = Number(LS.get("ws_products_count_time") || 0);
+    return !t || (Date.now() - t) >= META_CACHE_MS || !Number(LS.get(DB_KEYS.productsCount));
+  },
+
   async fetchRemoteProductsCount() {
     if (!firebaseEnabled) return this.getProductsCount();
     try {
@@ -511,29 +591,79 @@ const Store = {
       if (shallowKeys && typeof shallowKeys === "object") {
         const count = Object.keys(shallowKeys).length;
         LS.set(DB_KEYS.productsCount, String(count));
+        LS.set("ws_products_count_time", String(Date.now()));
         return count;
+      }
+      if (shallowKeys === null) {            // العقدة فارغة فعلاً
+        LS.set(DB_KEYS.productsCount, "0");
+        LS.set("ws_products_count_time", String(Date.now()));
+        return 0;
       }
     } catch (e) {}
     return this.getProductsCount();
   },
 
-  // دالة الفهرس المصغر فائق السرعة
-  getMiniIndex() {
-    if (_miniIndexMem) return _miniIndexMem;
-    const raw = LS.get(DB_KEYS.miniIndex);
+  // الفهرس الخفيف لكل المنتجات (للمتجر والبحث). نفس المصفوفة تُعاد في كل مرة.
+  getIndexItems() {
+    if (_indexMem) return _indexMem;
+    const raw = LS.get(IDX_ITEMS);
     if (raw) {
       const parsed = parseJSON(raw, null);
-      if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+      if (Array.isArray(parsed) && parsed.length) {
+        _indexMem = parsed.map(hydrateIndexRecord).filter(Boolean);
+        return _indexMem;
       }
     }
     const prods = this.getProducts();
-    if (prods && prods.length > 0) {
-      const mini = prods.map(buildMiniRecord).filter(Boolean);
-      LS.set(DB_KEYS.miniIndex, JSON.stringify(mini));
-      return mini;
-    }
+    if (prods && prods.length) return prods.map(buildIndexRecord).filter(Boolean).map(hydrateIndexRecord).filter(Boolean);
     return [];
+  },
+  getMiniIndex() { return this.getIndexItems(); },   // اسم قديم
+
+  hasIndexLocal() { return !!(_indexMem || LS.get(IDX_ITEMS)); },
+
+  /* يضمن أن الفهرس المحلي حديث. الكلفة: فحص رقم النسخة (بايتات) كل 30 دقيقة؛ والفهرس نفسه يُنزَّل فقط عند تغيّره. */
+  async ensureIndexFresh(force) {
+    if (!firebaseEnabled) return;
+    const have = this.hasIndexLocal();
+    const checked = Number(LS.get(IDX_CHECKED) || 0);
+    if (!force && have && (Date.now() - checked) < META_CACHE_MS) return;
+    return dedupe("indexFresh", async () => {
+      let remoteV;
+      try { remoteV = await restGet(DB_KEYS.index + "/v", "", 8000); }
+      catch (e) { if (have) return; throw e; }
+      if (remoteV === null || remoteV === undefined) {
+        // الفهرس لم يُبنَ بعد على الخادم (يبنيه الأدمن تلقائياً عند أول فتح للوحة التحكم): نعمل بالطريقة القديمة مؤقتاً
+        console.warn("ws_index غير موجود على Firebase: افتح لوحة الأدمن مرة واحدة لبنائه. (يعمل الموقع مؤقتاً بتحميل كل المنتجات)");
+        await this.ensureAllProductsFresh();
+        _indexMem = this.getProducts().map(buildIndexRecord).filter(Boolean).map(hydrateIndexRecord).filter(Boolean);
+        LS.set(IDX_CHECKED, String(Date.now()));
+        return;
+      }
+      if (have && String(LS.get(IDX_V)) === String(remoteV)) { LS.set(IDX_CHECKED, String(Date.now())); return; }
+      const items = await restGet(DB_KEYS.index + "/items", "", 30000);
+      storeIndexLocal({ v: remoteV, items: firebaseValueToArray(items) });
+      // تنظيف كاش المنتجات الكامل القديم إن كان كبيراً (كان يُملأ بالتحميل الكامل سابقاً)
+      const old = LS.get(DB_KEYS.products);
+      if (old && old.length > 1000000) LS.remove(DB_KEYS.products);
+    });
+  },
+
+  /* الأدمن: يبني ws_index من القائمة الكاملة (بعد التحميل الكامل). force=true لإعادة البناء ولو كان موجوداً. */
+  async rebuildIndex(force) {
+    if (!firebaseEnabled || !database || !this.canWriteProducts()) return false;
+    if (!force) {
+      try {
+        const v = await restGet(DB_KEYS.index + "/v", "", 8000);
+        if (v !== null && v !== undefined) return true;
+      } catch (e) { return false; }
+    }
+    const payload = buildIndexPayload(this.getProducts());
+    try {
+      await database.ref(DB_KEYS.index).set(payload);
+      storeIndexLocal(payload);
+      return true;
+    } catch (e) { console.error("rebuildIndex error:", e); return false; }
   },
 
   getCategories() {
@@ -579,14 +709,30 @@ const Store = {
     });
   },
 
+  /* هل يُسمح بكتابة قائمة المنتجات إلى Firebase الآن؟
+     الكتابة تستبدل عقدة ws_products كاملة، لذلك لا نسمح بها إلا بعد تحميل كل المنتجات من الخادم
+     في هذه الجلسة (loadAllProductsFromFirebase)؛ وإلا قد يُمحى الكتالوج بكاش جزئي. */
+  canWriteProducts() { return !firebaseEnabled || _productsFullyLoaded; },
+
+  // Promise<boolean> لآخر عملية حفظ للمنتجات (لتأكيد نجاح الكتابة قبل إظهار رسالة نجاح)
+  whenProductsSaved() { return _lastProductsWrite; },
+
   saveProducts(list) {
+    if (!this.canWriteProducts()) {
+      console.error("تم رفض حفظ المنتجات: لم يكتمل تحميل كل المنتجات من Firebase في هذه الجلسة.");
+      _lastProductsWrite = Promise.resolve(false);
+      return _lastProductsWrite;
+    }
     const normalized = (list || []).map((p, idx) => {
       if (!p) return p;
       const realId = String(p.id || p.objectID || uid("prd"));
       return Object.assign({}, p, { id: realId, objectID: realId });
     });
-    writeProductsLocal(normalized);
-    syncNodeToFirebase(DB_KEYS.products, normalized);
+    writeProductsLocal(normalized, true);
+    const idxPayload = buildIndexPayload(normalized);
+    storeIndexLocal(idxPayload);
+    _lastProductsWrite = syncProductsAndIndex(normalized, idxPayload);
+    return _lastProductsWrite;
   },
 
   getProduct(id) { 
@@ -606,13 +752,19 @@ const Store = {
       }
       return p;
     });
-    this.saveProducts(list);
+    return this.saveProducts(list);
   },
 
   deleteProduct(id) { 
-    if (id === null || id === undefined) return;
+    if (id === null || id === undefined) return Promise.resolve(false);
     const targetId = String(id).trim();
-    this.saveProducts(this.getProducts().filter(p => p && String(p.id || p.objectID).trim() !== targetId)); 
+    return this.saveProducts(this.getProducts().filter(p => p && String(p.id || p.objectID).trim() !== targetId)); 
+  },
+
+  // إزالة منتج من الكاش المحلي فقط (لا تكتب إلى Firebase أبداً) — تُستعمل عند اكتشاف أن المنتج حُذف من الخادم
+  _removeFromLocalCache(id) {
+    const targetId = String(id).trim();
+    writeProductsLocal(this.getProducts().filter(p => p && String(p.id || p.objectID).trim() !== targetId));
   },
 
   getFieldCache(name) {
@@ -751,7 +903,7 @@ const Store = {
       return local || null;
     }
     if (!fetched) {
-      if (local && forceRefresh) this.deleteProduct(targetId);
+      if (local && forceRefresh) this._removeFromLocalCache(targetId);
       return null;
     }
     this._cacheLoadedProducts([fetched]);
@@ -769,9 +921,23 @@ const Store = {
     try { products = await fetchAllProductsFromFirebase(); }
     catch (error) { console.error("Firebase all-products fetch error:", error); return this.getProducts(); }
     if (products === null) return this.getProducts();
-    this.saveProducts(products);
+    // نخزّن نسخة محلية فقط. (كان الكود يعيد كتابة القائمة كلها إلى Firebase بعد كل قراءة — هدر وخطر تعارض)
+    const normalized = products.map(function (p) {
+      const realId = String(p.id || p.objectID || "");
+      return Object.assign({}, p, { id: realId, objectID: realId });
+    });
+    writeProductsLocal(normalized, true);
     LS.set("ws_products_all_time", String(Date.now()));
-    return products;
+    _productsFullyLoaded = true;
+    return normalized;
+  },
+
+  // يحدّث نسخة كل المنتجات إن مرّت 15 دقيقة (أو لم تُحمَّل أبداً) دون تحليل JSON الكبير في كل مرة
+  async ensureAllProductsFresh() {
+    if (!firebaseEnabled) return;
+    const cachedAt = Number(LS.get("ws_products_all_time") || 0);
+    if (cachedAt && (Date.now() - cachedAt) < META_CACHE_MS) return;
+    await dedupe("allProducts", () => this.loadAllProductsFromFirebase(true));
   },
 
   addProduct(prod) {
@@ -818,8 +984,12 @@ const Store = {
     const key = inventoryKey(color, size);
     return Number((product.inventory || {})[key]) || 0;
   },
+  /* متوفر = غير مخفي يدوياً + مخزون حقيقي > 0.
+     منتجات الألوان/المقاسات تعتمد على inventory (أو على stock المحسوب في الفهرس المصغر الذي لا يحمل inventory). */
   isProductAvailable(product) {
-    return !!(product && product.available !== false && (product.stock > 0 || this.getTotalStock(product) > 0));
+    if (!product || product.available === false) return false;
+    if (this.hasVariantMatrix(product) && product.inventory) return sumInventory(product.inventory) > 0;
+    return (Number(product.stock) || 0) > 0;
   },
 
   getSettings() { return Object.assign({}, memoParse(DB_KEYS.settings, {})); },
@@ -855,7 +1025,9 @@ const Store = {
     const cart = this.getCart();
     const productId = String(itemKey).split("|")[0];
     const product = this.getProduct(productId);
-    const max = product ? Math.max(1, this.getVariantStock(product, meta.color, meta.size)) : 99;
+    const knownStock = product ? this.getVariantStock(product, meta.color, meta.size) : null;
+    if (product && (knownStock <= 0 || product.available === false)) return { capped: true, blocked: true };
+    const max = product ? Math.max(1, knownStock) : 99;
     let capped = false;
 
     const line = cart.find(l => l.itemKey === itemKey);

@@ -1,7 +1,8 @@
 /* ==========================================================================
    admin.js
    منطق لوحة تحكم الأدمن بالكامل (admin.html). 
-   تم التحديث: تقييد استيراد الإكسل بـ 50 منتج متوفر، ومزامنة Algolia التلقائية.
+   تم التحديث: سقف استيراد الإكسل (STORE_CONFIG.maxExcelImportCount)، ومزامنة Algolia التلقائية،
+   وحماية الكتابة (لا حفظ للمنتجات قبل اكتمال تحميلها)، وتهريب كل نص ديناميكي (XSS).
    ========================================================================== */
 
 let editingProductId = null;
@@ -28,8 +29,17 @@ async function initAdminPage() {
 
   // لوحة الأدمن تحتاج القائمة الكاملة، بينما المتجر العام لا يسحبها.
   await Store.loadAllProductsFromFirebase(true);
+  // بناء فهرس المتجر الخفيف (ws_index) تلقائياً إن لم يكن موجوداً (مرة واحدة)؛ بعدها يُحدَّث مع كل حفظ للمنتجات
+  Store.rebuildIndex(false).then(function (ok) {
+    if (!ok) showAdminBanner("تعذّر إنشاء/قراءة فهرس المتجر ws_index. أضف قاعدة ws_index إلى Firebase Rules (انظر STORE_AI_GUIDE القسم 19) ثم حدّث الصفحة؛ حتى ذلك الحين يعمل المتجر بالطريقة القديمة (استهلاك أعلى).");
+  });
   // جلب أحدث الطلبات من السيرفر فور فتح لوحة التحكم
   await Store.loadOrdersFromFirebase();
+
+  // إن فشل تحميل كل المنتجات فالكاش قد يكون جزئياً: نمنع الحفظ (يستبدل ws_products كاملة) حتى لا يضيع الكتالوج
+  if (!Store.canWriteProducts()) {
+    showAdminBanner("تعذّر تحميل كل المنتجات من الخادم، لذلك أُوقف حفظ/حذف المنتجات مؤقتاً لحماية بياناتك. تحقق من الاتصال ثم حدّث الصفحة.");
+  }
 
   wireSidebarNav();
   const logoutBtn = document.getElementById("adminLogoutBtn");
@@ -60,15 +70,61 @@ async function initAdminPage() {
   if (productSearch) productSearch.addEventListener("input", renderProductsTable);
 }
 
+function showAdminBanner(message) {
+  const main = document.querySelector(".admin-main");
+  if (!main) return;
+  const box = document.createElement("div");
+  box.className = "setup-note";
+  box.setAttribute("role", "alert");
+  box.textContent = message;
+  main.insertBefore(box, main.firstChild);
+}
+
+// يتأكد أن حفظ المنتجات مسموح (تم تحميل كل المنتجات من الخادم) وإلا يعرض رسالة ويمنع العملية
+function ensureProductsWritable() {
+  if (Store.canWriteProducts()) return true;
+  showToast("لم يكتمل تحميل المنتجات من الخادم، لذلك أُوقف الحفظ لحماية بياناتك. حدّث الصفحة ثم أعد المحاولة.", "error");
+  return false;
+}
+
 /* ---------------------------------------------------------------------- */
 /* مزامنة البيانات مع محرك البحث Algolia                                  */
 /* ---------------------------------------------------------------------- */
 
+/* مفتاح Algolia الإداري (Admin API Key) يتيح تعديل/حذف الفهرس بالكامل، فلا يجوز وضعه في config.js
+   لأن الملف يُحمَّل لكل زائر. يُطلب من الأدمن مرة واحدة لكل جلسة ويُحفظ في sessionStorage فقط. */
+let _algoliaKeyDeclined = false;
+function algoliaConfigured() {
+  const cfg = typeof STORE_CONFIG !== "undefined" ? STORE_CONFIG : {};
+  return !!(cfg.useAlgolia === true && cfg.algoliaAppId && !String(cfg.algoliaAppId).startsWith("YOUR_"));
+}
+function getAlgoliaAdminKey() {
+  const cfg = typeof STORE_CONFIG !== "undefined" ? STORE_CONFIG : {};
+  if (cfg.algoliaAdminKey && !String(cfg.algoliaAdminKey).startsWith("YOUR_")) {
+    console.warn("تحذير أمني: algoliaAdminKey موجود في config.js وهو ظاهر لكل زائر. احذفه وبدّل المفتاح من لوحة Algolia.");
+    return String(cfg.algoliaAdminKey);
+  }
+  try { return sessionStorage.getItem("ws_algolia_admin_key") || ""; } catch (e) { return ""; }
+}
+function requestAlgoliaAdminKey() {
+  if (!algoliaConfigured()) return "";
+  let key = getAlgoliaAdminKey();
+  if (key || _algoliaKeyDeclined) return key;
+  key = (window.prompt("لمزامنة محرك البحث Algolia أدخل مفتاح Admin API Key (يُحفظ لهذه الجلسة فقط ولا يُرسل لأي مكان آخر).\nاضغط إلغاء لتخطي المزامنة في هذه الجلسة.") || "").trim();
+  if (!key) {
+    _algoliaKeyDeclined = true;
+    showToast("تم تخطي مزامنة Algolia في هذه الجلسة.", "error");
+    return "";
+  }
+  try { sessionStorage.setItem("ws_algolia_admin_key", key); } catch (e) { /* نبقيه في الذاكرة لهذه العملية فقط */ }
+  return key;
+}
+
 async function syncProductsToAlgolia(productsList) {
   const cfg = typeof STORE_CONFIG !== "undefined" ? STORE_CONFIG : {};
-  if (!cfg.algoliaAppId || cfg.algoliaAppId.startsWith("YOUR_") || !cfg.algoliaAdminKey || cfg.algoliaAdminKey.startsWith("YOUR_")) {
-    return; // Algolia غير مفعل أو المفاتيح لم تُضبط
-  }
+  if (!algoliaConfigured()) return; // Algolia غير مفعل
+  const adminKey = requestAlgoliaAdminKey();
+  if (!adminKey) return;            // لا مفتاح → لا مزامنة
 
   const indexName = cfg.algoliaIndexName || "products";
   const url = `https://${cfg.algoliaAppId}.algolia.net/1/indexes/${encodeURIComponent(indexName)}/batch`;
@@ -93,7 +149,7 @@ async function syncProductsToAlgolia(productsList) {
           isOffer: !!p.isOffer,
           isNew: !!p.isNew,
           available: true,
-          stock: p.stock || 1
+          stock: Number(Store.getTotalStock(p)) || Number(p.stock) || 1
         }
       });
     } else {
@@ -111,7 +167,7 @@ async function syncProductsToAlgolia(productsList) {
       method: "POST",
       headers: {
         "X-Algolia-Application-Id": cfg.algoliaAppId,
-        "X-Algolia-API-Key": cfg.algoliaAdminKey,
+        "X-Algolia-API-Key": adminKey,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ requests })
@@ -124,9 +180,9 @@ async function syncProductsToAlgolia(productsList) {
 
 async function deleteProductFromAlgolia(productId) {
   const cfg = typeof STORE_CONFIG !== "undefined" ? STORE_CONFIG : {};
-  if (!cfg.algoliaAppId || cfg.algoliaAppId.startsWith("YOUR_") || !cfg.algoliaAdminKey || cfg.algoliaAdminKey.startsWith("YOUR_")) {
-    return;
-  }
+  if (!algoliaConfigured()) return;
+  const adminKey = requestAlgoliaAdminKey();
+  if (!adminKey) return;
   const indexName = cfg.algoliaIndexName || "products";
   const url = `https://${cfg.algoliaAppId}.algolia.net/1/indexes/${encodeURIComponent(indexName)}/${encodeURIComponent(productId)}`;
 
@@ -135,7 +191,7 @@ async function deleteProductFromAlgolia(productId) {
       method: "DELETE",
       headers: {
         "X-Algolia-Application-Id": cfg.algoliaAppId,
-        "X-Algolia-API-Key": cfg.algoliaAdminKey
+        "X-Algolia-API-Key": adminKey
       }
     });
   } catch (err) {
@@ -179,59 +235,84 @@ function wireExcelSync() {
       const priceKeys = ["السعر", "سعر البيع", "سعر المفرد", "price"];
       const stockKeys = ["الكمية", "المخزون", "الرصيد", "stock", "qty"];
 
-      // 1. فلترة واستخراج الصفوف المتوفرة فقط (استبعاد كمية 0)
+      // قراءة رقم من خلية Excel/CSV: يدعم الأرقام العربية وفواصل الآلاف ("1,500" كانت تُقرأ 1). فارغ/غير رقمي → null
+      const parseCellNumber = (raw) => {
+        if (raw === null || raw === undefined || raw === "") return null;
+        if (typeof raw === "number") return isFinite(raw) ? raw : null;
+        const txt = String(raw)
+          .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660))
+          .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0))
+          .replace(/[\u066C,\s]/g, "")
+          .replace(/\u066B/g, ".");
+        const n = parseFloat(txt);
+        return isFinite(n) ? n : null;
+      };
+
+      // 1. استخراج الصفوف (السعر/الكمية الفارغان = null أي "لا تغيّر"، بدل اعتبارهما 0 وكتابة سعر 0 فوق السعر الحالي)
       const validRows = [];
       rows.forEach(row => {
         const barcodeVal = getVal(row, barcodeKeys)?.toString().trim();
         const nameVal = getVal(row, nameKeys)?.toString().trim();
-        let priceVal = parseFloat(getVal(row, priceKeys));
-        let stockVal = parseInt(getVal(row, stockKeys), 10);
+        let priceVal = parseCellNumber(getVal(row, priceKeys));
+        let stockVal = parseCellNumber(getVal(row, stockKeys));
 
-        if (isNaN(priceVal)) priceVal = 0;
-        if (isNaN(stockVal)) stockVal = 0;
-
-        // استبعاد أي منتج كميته 0 أو غير معرف
-        if (stockVal <= 0) return;
         if (!nameVal && !barcodeVal) return;
+        if (priceVal !== null && priceVal < 0) priceVal = null;
+        if (stockVal !== null) stockVal = Math.max(0, Math.floor(stockVal));
 
         validRows.push({ barcodeVal, nameVal, priceVal, stockVal });
       });
 
       if (validRows.length === 0) {
-        alert("لم يتم العثور على أي منتجات متوفرة (الكمية أكبر من صفر) في الملف.");
+        alert("لم يتم العثور على أي صفوف صالحة (يلزم اسم أو باركود) في الملف.");
         return;
       }
 
-      // 2. تطبيق سقف الـ 50 منتجاً لحماية الباقة
+      // 2. سقف الاستيراد لحماية الباقة
       const MAX_IMPORT = (typeof STORE_CONFIG !== "undefined" && STORE_CONFIG.maxExcelImportCount) || 1000;
       if (validRows.length > MAX_IMPORT) {
-        alert(`الملف يحتوي على (${validRows.length}) منتج متوفر.\nالحد الأقصى المسموح باستيراده دفعة واحدة هو (${MAX_IMPORT}) منتج لحماية الحساب.\nيرجى تصفية ملف الإكسل وتصدير المنتجات المطلوبة فقط.`);
+        alert(`الملف يحتوي على (${validRows.length}) صف.\nالحد الأقصى المسموح باستيراده دفعة واحدة هو (${MAX_IMPORT}) صف لحماية الحساب.\nيرجى تقسيم الملف أو رفع maxExcelImportCount في config.js.`);
         return;
       }
+
+      if (!ensureProductsWritable()) return;
 
       let products = Store.getProducts();
       let updatedCount = 0;
       let addedCount = 0;
+      let zeroedCount = 0;
+      let skippedNewCount = 0;
+      let matrixStockSkipped = 0;
       const touchedProducts = [];
 
       validRows.forEach(item => {
-        let existingProduct = products.find(p => 
+        let existingProduct = products.find(p =>
           (item.barcodeVal && (p.barcode === item.barcodeVal || p.sku === item.barcodeVal || p.id === item.barcodeVal)) ||
           (item.nameVal && p.name === item.nameVal)
         );
 
         if (existingProduct) {
-          existingProduct.price = item.priceVal;
-          existingProduct.stock = item.stockVal;
+          if (item.priceVal !== null) existingProduct.price = item.priceVal;
+
+          if (item.stockVal !== null) {
+            if (Store.hasVariantMatrix(existingProduct)) {
+              // المخزون الفعلي لهذه المنتجات في شبكة inventory (لون×مقاس)؛ تحديث stock وحده يسبّب تناقضاً
+              matrixStockSkipped++;
+            } else {
+              existingProduct.stock = item.stockVal;
+              if (item.stockVal > 0) existingProduct.available = true;
+              else zeroedCount++;
+            }
+          }
           if (item.barcodeVal && !existingProduct.barcode) {
             existingProduct.barcode = item.barcodeVal;
             existingProduct.sku = item.barcodeVal;
           }
-          existingProduct.available = true;
           touchedProducts.push(existingProduct);
           updatedCount++;
         } else {
-          if (!item.nameVal) return;
+          // منتج جديد: يلزم اسم وسعر صالح وكمية > 0 (لا ننشئ منتجاً بسعر 0 أو بدون مخزون)
+          if (!item.nameVal || !(item.priceVal > 0) || !(item.stockVal > 0)) { skippedNewCount++; return; }
           const newProduct = {
             id: uid("prd"),
             name: item.nameVal,
@@ -256,17 +337,30 @@ function wireExcelSync() {
         }
       });
 
-      // 3. الحفظ في Firebase والمزامنة الفورية مع Algolia
-      await Store.saveProducts(products);
+      if (!touchedProducts.length) {
+        alert("لم يتم تحديث أي منتج. الصفوف الجديدة تحتاج اسماً وسعراً أكبر من صفر وكمية أكبر من صفر.");
+        return;
+      }
+
+      // 3. الحفظ في Firebase (نتأكد من نجاح الكتابة) ثم المزامنة مع Algolia
+      const saved = await Store.saveProducts(products);
+      if (saved === false) {
+        alert("تعذّر حفظ التغييرات على الخادم (تحقق من الاتصال وصلاحيات Firebase). حدّث الصفحة وأعد المحاولة.");
+        return;
+      }
       await syncProductsToAlgolia(touchedProducts);
-      
-      alert(`تمت العملية بنجاح!\n- تم تحديث: ${updatedCount} منتج\n- تمت إضافة: ${addedCount} منتج جديد\n- تمت مزامنة محرك البحث تلقائياً.`);
-      
+
+      let report = `تمت العملية بنجاح!\n- تم تحديث: ${updatedCount} منتج\n- تمت إضافة: ${addedCount} منتج جديد`;
+      if (zeroedCount) report += `\n- أُصفرت كميتها (غير متوفرة الآن): ${zeroedCount}`;
+      if (skippedNewCount) report += `\n- صفوف جديدة تم تخطيها (بلا سعر/كمية صالحة): ${skippedNewCount}`;
+      if (matrixStockSkipped) report += `\n- منتجات بألوان/مقاسات لم تُحدَّث كميتها (عدّلها من نافذة المنتج): ${matrixStockSkipped}`;
+      alert(report);
+
       if (typeof renderProductsTable === "function") {
         renderProductsTable();
       }
       renderStats();
-      
+
     } catch (error) {
       console.error("Excel import error:", error);
       alert("حدث خطأ أثناء قراءة الملف. تأكد من أن الملف بصيغة Excel صالحة وأن الأعمدة مطابقة.");
@@ -410,7 +504,7 @@ function renderProductsTable() {
   }
 
   tbody.innerHTML = products.map(function (p) {
-    const img = p.image ? '<img src="' + p.image + '">' : '<div class="admin-table-icon">' + iconSvg("box") + "</div>";
+    const img = p.image ? '<img src="' + escapeHtml(p.image) + '" alt="">' : '<div class="admin-table-icon">' + iconSvg("box") + "</div>";
     const statusPill = Store.isProductAvailable(p)
       ? '<span class="pill pill-ok">متوفر</span>'
       : '<span class="pill pill-off" style="color: #dc2626; background: #fee2e2; border: 1px solid #fca5a5; font-weight: bold;">غير متوفر</span>';
@@ -432,8 +526,8 @@ function renderProductsTable() {
         "<td>" + p.stock + "</td>" +
         "<td>" + statusPill + "</td>" +
         '<td class="row-actions">' +
-          '<button class="btn-icon btn-sm" title="تعديل" onclick="openProductModal(\'' + p.id + '\')">' + iconSvg("edit") + "</button>" +
-          '<button class="btn-icon btn-sm" title="حذف" onclick="deleteProductConfirm(\'' + p.id + '\')">' + iconSvg("trash") + "</button>" +
+          '<button class="btn-icon btn-sm" title="تعديل" onclick="openProductModal(' + jsStr(p.id) + ')">' + iconSvg("edit") + "</button>" +
+          '<button class="btn-icon btn-sm" title="حذف" onclick="deleteProductConfirm(' + jsStr(p.id) + ')">' + iconSvg("trash") + "</button>" +
         "</td>" +
       "</tr>"
     );
@@ -444,7 +538,13 @@ async function deleteProductConfirm(id) {
   const product = Store.getProduct(id);
   if (!product) return;
   if (confirm('هل تريد حذف المنتج "' + product.name + '"؟ لا يمكن التراجع عن هذا الإجراء.')) {
-    Store.deleteProduct(id);
+    if (!ensureProductsWritable()) return;
+    const ok = await Store.deleteProduct(id);
+    if (ok === false) {
+      showToast("تعذّر حذف المنتج من الخادم. حدّث الصفحة وأعد المحاولة.", "error");
+      renderProductsTable();
+      return;
+    }
     await deleteProductFromAlgolia(id);
     renderProductsTable();
     renderStats();
@@ -456,7 +556,7 @@ function populateCategorySelect() {
   const select = document.getElementById("productCategorySelect");
   if (!select) return;
   select.innerHTML = Store.getCategories().map(function (c) {
-    return '<option value="' + c.id + '">' + escapeHtml(c.name) + "</option>";
+    return '<option value="' + escapeHtml(c.id) + '">' + escapeHtml(c.name) + "</option>";
   }).join("");
 }
 
@@ -488,14 +588,14 @@ function renderColorsList() {
           
           '<div style="display:flex;flex-direction:column;gap:5px;align-items:center;">' +
             '<label style="font-size:0.8rem;color:var(--ink-400);">الدرجة</label>' +
-            '<input type="color" value="' + (c.hex || "#7c9a4c") + '" data-color-idx="' + idx + '" class="color-hex-input" style="width:38px;height:38px;padding:0;border:none;cursor:pointer;border-radius:50%;">' +
+            '<input type="color" value="' + escapeHtml(/^#[0-9a-fA-F]{6}$/.test(c.hex || "") ? c.hex : "#7c9a4c") + '" data-color-idx="' + idx + '" class="color-hex-input" style="width:38px;height:38px;padding:0;border:none;cursor:pointer;border-radius:50%;">' +
           '</div>' +
           
           '<div class="image-upload" style="margin:0;display:flex;flex-direction:column;gap:5px;min-width:120px;">' +
             '<label style="font-size:0.8rem;color:var(--ink-400);">صورة اللون (اختياري)</label>' +
             '<div style="display:flex;align-items:center;gap:10px;">' +
               '<div class="preview" id="colorImgPreview_' + idx + '" style="width:38px;height:38px;border-radius:6px;overflow:hidden;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;background:#fff;">' + 
-                (c.image ? '<img src="' + c.image + '" style="width:100%;height:100%;object-fit:cover;">' : iconSvg("box")) + 
+                (c.image ? '<img src="' + escapeHtml(c.image) + '" style="width:100%;height:100%;object-fit:cover;">' : iconSvg("box")) + 
               '</div>' +
               '<input type="file" accept="image/*" class="color-image-input" data-color-idx="' + idx + '" style="width:90px;font-size:0.8rem;">' +
             '</div>' +
@@ -596,7 +696,7 @@ function renderInventoryGrid() {
     colKeys.forEach(function (size) {
       const key = inventoryKeyFor(color, size);
       const val = Number(pendingInventory[key]) || 0;
-      html += "<td style='padding:4px;'><input type='number' min='0' value='" + val + "' data-inv-key='" + key + "' class='inventory-cell' style='width:70px;padding:6px;'></td>";
+      html += "<td style='padding:4px;'><input type='number' min='0' value='" + (Number(val) || 0) + "' data-inv-key='" + escapeHtml(key) + "' class='inventory-cell' style='width:70px;padding:6px;'></td>";
     });
     html += "</tr>";
   });
@@ -644,7 +744,7 @@ function wireProductModal() {
         showToast("جاري رفع الصورة بدقة عالية...");
         const imageUrl = await uploadToImgBB(file, false);
         pendingProductImage = imageUrl;
-        document.getElementById("productImagePreview").innerHTML = '<img src="' + imageUrl + '">';
+        document.getElementById("productImagePreview").innerHTML = '<img src="' + escapeHtml(imageUrl) + '">';
         showToast("تم رفع الصورة بنجاح!", "success");
       } catch (error) {
         console.error("Upload Error:", error);
@@ -682,10 +782,13 @@ function wireProductModal() {
 window.removeExtraImage = function(index) {
   if (!confirm("هل أنت متأكد من حذف هذه الصورة؟")) return;
   if (editingProductId) {
+    if (!ensureProductsWritable()) return;
     const p = Store.getProduct(editingProductId);
     if (p && p.images) {
       p.images.splice(index, 1);
-      Store.updateProduct(editingProductId, { images: p.images });
+      Store.updateProduct(editingProductId, { images: p.images }).then(function (ok) {
+        if (ok === false) showToast("تعذّر حفظ حذف الصورة على الخادم", "error");
+      });
       openProductModal(editingProductId);
       showToast("تم حذف الصورة الإضافية", "success");
     }
@@ -728,12 +831,12 @@ function openProductModal(productId) {
     if (document.getElementById("productOffer")) document.getElementById("productOffer").checked = !!p.isOffer; 
     
     pendingProductImage = p.image || null;
-    preview.innerHTML = p.image ? '<img src="' + p.image + '">' : iconSvg("box");
+    preview.innerHTML = p.image ? '<img src="' + escapeHtml(p.image) + '">' : iconSvg("box");
     
     if (p.images && p.images.length > 0 && extraImagesPreview) {
       extraImagesPreview.innerHTML = p.images.map((img, idx) => `
         <div style="position:relative; display:inline-block; margin-left:10px; margin-bottom:10px;">
-          <img src="${img}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line-strong);">
+          <img src="${escapeHtml(img)}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line-strong);">
           <button type="button" onclick="removeExtraImage(${idx})" title="حذف الصورة" style="position:absolute; top:-6px; right:-6px; background:var(--danger); color:#fff; border:none; border-radius:50%; width:22px; height:22px; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 4px rgba(0,0,0,0.2);">×</button>
         </div>
       `).join('');
@@ -854,16 +957,24 @@ async function saveProductForm(e) {
     return;
   }
 
+  if (!ensureProductsWritable()) return;
+
   let savedProduct = null;
   if (editingProductId) {
     data.id = editingProductId;
     Store.updateProduct(editingProductId, data);
     savedProduct = Store.getProduct(editingProductId);
-    showToast("تم تحديث المنتج", "success");
   } else {
     savedProduct = Store.addProduct(data);
-    showToast("تمت إضافة المنتج", "success");
   }
+
+  // نتأكد من نجاح الكتابة على الخادم قبل إعلان النجاح (كان يُعلن النجاح دائماً حتى لو رُفضت الكتابة)
+  const persisted = await Store.whenProductsSaved();
+  if (persisted === false) {
+    showToast("لم يُحفظ المنتج على الخادم (تحقق من الاتصال وصلاحيات Firebase). النافذة مفتوحة لإعادة المحاولة.", "error");
+    return;
+  }
+  showToast(editingProductId ? "تم تحديث المنتج" : "تمت إضافة المنتج", "success");
 
   // مزامنة المنتج مع Algolia
   if (savedProduct) {
@@ -892,7 +1003,7 @@ function renderCategoriesTable() {
 
   tbody.innerHTML = categories.map(function (c) {
     const count = products.filter(function (p) { return p.categoryId === c.id; }).length;
-    const img = c.image ? '<img src="' + c.image + '">' : '<div class="admin-table-icon">' + iconSvg(c.icon || "box") + "</div>";
+    const img = c.image ? '<img src="' + escapeHtml(c.image) + '" alt="">' : '<div class="admin-table-icon">' + iconSvg(c.icon || "box") + "</div>";
     
     const parent = c.parentId ? categories.find(function(x) { return x.id === c.parentId; }) : null;
     const displayName = parent 
@@ -905,8 +1016,8 @@ function renderCategoriesTable() {
         "<td>" + displayName + "</td>" +
         "<td>" + count + " منتج</td>" +
         '<td class="row-actions">' +
-          '<button class="btn-icon btn-sm" title="تعديل" onclick="openCategoryModal(\'' + c.id + '\')">' + iconSvg("edit") + "</button>" +
-          '<button class="btn-icon btn-sm" title="حذف" onclick="deleteCategoryConfirm(\'' + c.id + '\')">' + iconSvg("trash") + "</button>" +
+          '<button class="btn-icon btn-sm" title="تعديل" onclick="openCategoryModal(' + jsStr(c.id) + ')">' + iconSvg("edit") + "</button>" +
+          '<button class="btn-icon btn-sm" title="حذف" onclick="deleteCategoryConfirm(' + jsStr(c.id) + ')">' + iconSvg("trash") + "</button>" +
         "</td>" +
       "</tr>"
     );
@@ -916,6 +1027,12 @@ function renderCategoriesTable() {
 function deleteCategoryConfirm(id) {
   const category = Store.getCategories().find(function (c) { return c.id === id; });
   if (!category) return;
+  // حذف قسم رئيسي له أقسام فرعية يجعل الفرعية يتيمة (تختفي هي ومنتجاتها من المتجر) → نمنعه
+  const childCount = Store.getCategories().filter(function (c) { return c.parentId === id; }).length;
+  if (childCount) {
+    showToast('لا يمكن حذف "' + category.name + '" لأن له ' + childCount + ' قسم فرعي. احذف الأقسام الفرعية أو انقلها لقسم آخر أولاً.', "error");
+    return;
+  }
   const productsInCat = Store.getProducts().filter(function (p) { return p.categoryId === id; }).length;
   const msg = productsInCat
     ? 'يوجد ' + productsInCat + ' منتج مرتبط بقسم "' + category.name + '". حذف القسم لن يحذف المنتجات لكنها ستبقى بدون قسم ظاهر. المتابعة؟'
@@ -967,7 +1084,7 @@ function wireCategoryModal() {
         const imageUrl = await uploadToImgBB(file, false);
         pendingCategoryImage = imageUrl;
         const preview = document.getElementById("categoryImagePreview");
-        if (preview) preview.innerHTML = '<img src="' + imageUrl + '">';
+        if (preview) preview.innerHTML = '<img src="' + escapeHtml(imageUrl) + '">';
         showToast("تم الرفع بنجاح!", "success");
       } catch (error) {
         console.error("Upload Error:", error);
@@ -1015,7 +1132,10 @@ function openCategoryModal(categoryId) {
   
   parentSelect.innerHTML = '<option value="">-- قسم رئيسي مستقل --</option>' +
     allCats.filter(function(c) { return c.id !== categoryId && !c.parentId; })
-           .map(function(c) { return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; }).join("");
+           .map(function(c) { return '<option value="' + escapeHtml(c.id) + '">' + escapeHtml(c.name) + '</option>'; }).join("");
+
+  // قسم رئيسي لديه أقسام فرعية لا يجوز أن يصبح فرعياً (3 مستويات غير مدعومة)
+  parentSelect.disabled = !!(categoryId && allCats.some(function (cc) { return cc.parentId === categoryId; }));
 
   if (categoryId) {
     const c = allCats.find(function (cc) { return cc.id === categoryId; });
@@ -1024,8 +1144,8 @@ function openCategoryModal(categoryId) {
     parentSelect.value = c.parentId || "";
     pendingCategoryImage = c.image || null;
     
-    if (preview) preview.innerHTML = c.image ? '<img src="' + c.image + '">' : iconSvg(c.icon || "box");
-    const radio = form.querySelector('input[name="categoryIcon"][value="' + c.icon + '"]');
+    if (preview) preview.innerHTML = c.image ? '<img src="' + escapeHtml(c.image) + '">' : iconSvg(c.icon || "box");
+    const radio = form.querySelector('input[name="categoryIcon"][value="' + CSS.escape(String(c.icon || "")) + '"]');
     if (radio) radio.checked = true;
     syncIconPickerActive();
   } else {
@@ -1084,8 +1204,8 @@ function renderAdsTable() {
   }
 
   tbody.innerHTML = ads.map(function (ad) {
-    const img = ad.image ? '<img src="' + ad.image + '" style="width:80px;height:40px;border-radius:4px;object-fit:cover;">' : '<div class="admin-table-icon">' + iconSvg("image") + "</div>";
-    const link = ad.link ? '<a href="' + escapeHtml(ad.link) + '" target="_blank" style="color:var(--olive-700);text-decoration:underline;">عرض الرابط</a>' : '-';
+    const img = ad.image ? '<img src="' + escapeHtml(ad.image) + '" alt="" style="width:80px;height:40px;border-radius:4px;object-fit:cover;">' : '<div class="admin-table-icon">' + iconSvg("image") + "</div>";
+    const link = ad.link ? '<a href="' + escapeHtml(safeUrl(ad.link)) + '" rel="noopener noreferrer" target="_blank" style="color:var(--olive-700);text-decoration:underline;">عرض الرابط</a>' : '-';
     
     return (
       "<tr>" +
@@ -1093,7 +1213,7 @@ function renderAdsTable() {
         "<td>" + link + "</td>" +
         "<td>" + (ad.order || 0) + "</td>" +
         '<td class="row-actions">' +
-          '<button class="btn-icon btn-sm" title="حذف" onclick="deleteAdConfirm(\'' + ad.id + '\')">' + iconSvg("trash") + "</button>" +
+          '<button class="btn-icon btn-sm" title="حذف" onclick="deleteAdConfirm(' + jsStr(ad.id) + ')">' + iconSvg("trash") + "</button>" +
         "</td>" +
       "</tr>"
     );
@@ -1128,7 +1248,7 @@ function wireAdModal() {
         const imageUrl = await uploadToImgBB(file, true);
         pendingAdImage = imageUrl;
         const preview = document.getElementById("adImagePreview");
-        if (preview) preview.innerHTML = '<img src="' + imageUrl + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">';
+        if (preview) preview.innerHTML = '<img src="' + escapeHtml(imageUrl) + '" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">';
         showToast("تم رفع الإعلان بنجاح!", "success");
       } catch (error) {
         console.error("Upload Error:", error);
@@ -1190,103 +1310,122 @@ function saveAdForm(e) {
 /* سجلّ الطلبات ودالة خصم المخزون المتطورة                                 */
 /* ---------------------------------------------------------------------- */
 
+function orderInventoryKey(item) {
+  return (item.color || "_") + "||" + (item.size || "_");
+}
+
 window.changeOrderStatus = async function(orderId, selectElement) {
-    const newStatus = selectElement.value;
-    const orders = Store.getOrders();
-    const order = orders.find(o => o.id === orderId);
-    if (!order) return;
+  const newStatus = selectElement.value;
+  const order = Store.getOrders().find(o => o.id === orderId);
+  if (!order) return;
+  const previousStatus = order.status || "pending";
 
-    if (newStatus === 'prepared' && !order.stockDeducted) {
-        if (confirm("هل تريد تأكيد تجهيز الطلب وخصم المنتجات من المخزون تلقائياً؟")) {
-            showToast("جاري التحديث وخصم الكميات...");
-            const affectedProducts = [];
-            
-            for (let item of order.items) {
-                let product = Store.getProduct(item.productId);
-                if (!product) continue;
-                
-                let updated = false;
-                if (Store.hasVariantMatrix(product) && product.inventory) {
-                    let key = (item.color || "_") + "||" + (item.size || "_");
-                    if (product.inventory[key] !== undefined && product.inventory[key] >= item.qty) {
-                        product.inventory[key] -= item.qty;
-                        updated = true;
-                    }
-                } else {
-                    if (product.stock >= item.qty) {
-                        product.stock -= item.qty;
-                        updated = true;
-                    }
-                }
-
-                if (updated) {
-                    let newTotalStock = Store.hasVariantMatrix(product) 
-                        ? Object.values(product.inventory).reduce((sum, n) => sum + (Number(n) || 0), 0)
-                        : product.stock;
-                        
-                    await Store.updateProduct(product.id, { 
-                        stock: newTotalStock, 
-                        inventory: product.inventory 
-                    });
-                    affectedProducts.push(Store.getProduct(product.id));
-                }
-            }
-
-            if (affectedProducts.length > 0) {
-              await syncProductsToAlgolia(affectedProducts);
-            }
-            
-            order.stockDeducted = true;
-            order.status = newStatus;
-            await updateOrderInFirebase(order.id, { status: 'prepared', stockDeducted: true });
-            showToast("تم تجهيز الطلب وخصم المخزون بنجاح!", "success");
-        } else {
-            selectElement.value = order.status || 'pending';
-            return;
-        }
-    } else {
-        order.status = newStatus;
-        await updateOrderInFirebase(order.id, { status: newStatus });
-        showToast("تم تحديث حالة الطلب.", "success");
+  if (newStatus === "prepared" && !order.stockDeducted) {
+    if (!confirm("هل تريد تأكيد تجهيز الطلب وخصم المنتجات من المخزون تلقائياً؟")) {
+      selectElement.value = previousStatus;
+      return;
     }
-    
-    renderOrdersTable();
+    if (!ensureProductsWritable()) { selectElement.value = previousStatus; return; }
+
+    showToast("جاري التحديث وخصم الكميات...");
+    const products = Store.getProducts();
+    const byId = new Map(products.map(p => [String(p.id), p]));
+    const touched = new Map();
+    const notDeducted = [];
+
+    (order.items || []).forEach(function (item) {
+      const product = byId.get(String(item.productId));
+      const qty = Math.floor(Number(item.qty)) || 0;
+      if (!product || qty <= 0) { notDeducted.push(item.name || item.productId); return; }
+
+      const useMatrix = Store.hasVariantMatrix(product) && product.inventory;
+      if (useMatrix) {
+        const key = orderInventoryKey(item);
+        if (product.inventory[key] !== undefined && Number(product.inventory[key]) >= qty) {
+          product.inventory[key] = Number(product.inventory[key]) - qty;
+          product.stock = Object.values(product.inventory).reduce((sum, n) => sum + (Number(n) || 0), 0);
+          touched.set(product.id, product);
+        } else { notDeducted.push(item.name || item.productId); }
+      } else if ((Number(product.stock) || 0) >= qty) {
+        product.stock = Number(product.stock) - qty;
+        touched.set(product.id, product);
+      } else { notDeducted.push(item.name || item.productId); }
+    });
+
+    if (touched.size > 0) {
+      // كتابة واحدة لكل الطلب (كانت كتابة كاملة لقائمة المنتجات لكل بند)
+      const ok = await Store.saveProducts(products);
+      if (ok === false) {
+        showToast("تعذّر حفظ خصم المخزون على الخادم. لم يتغيّر الطلب. حدّث الصفحة وأعد المحاولة.", "error");
+        selectElement.value = previousStatus;
+        return;
+      }
+      await syncProductsToAlgolia(Array.from(touched.values()));
+    }
+
+    const saved = await updateOrderInFirebase(order.id, { status: "prepared", stockDeducted: true });
+    if (!saved) {
+      showToast("تم خصم المخزون لكن تعذّر تحديث حالة الطلب على الخادم. حدّث الصفحة وتحقق من الطلب.", "error");
+    } else if (notDeducted.length) {
+      showToast("تم التجهيز، لكن لم تُخصم كمية: " + notDeducted.join("، ") + " (المخزون غير كافٍ أو المنتج محذوف).", "error");
+    } else {
+      showToast("تم تجهيز الطلب وخصم المخزون بنجاح!", "success");
+    }
+  } else {
+    const saved = await updateOrderInFirebase(order.id, { status: newStatus });
+    if (!saved) {
+      showToast("تعذّر تحديث حالة الطلب على الخادم.", "error");
+      selectElement.value = previousStatus;
+      return;
+    }
+    showToast("تم تحديث حالة الطلب.", "success");
+  }
+
+  renderOrdersTable();
 };
 
+/* يحدّث الطلب في Firebase أولاً ثم محلياً. يعيد true عند النجاح. */
 window.updateOrderInFirebase = async function(orderId, patch) {
-    const list = Store.getOrders().map(o => o.id === orderId ? Object.assign({}, o, patch) : o);
-    localStorage.setItem("ws_orders", JSON.stringify(list));
-    
-    if (typeof database !== "undefined" && database) {
-        try {
-            const snapshot = await database.ref("ws_orders").orderByChild("id").equalTo(orderId).once("value");
-            if (snapshot.exists()) {
-                snapshot.forEach(child => {
-                    child.ref.update(patch);
-                });
-            }
-        } catch(e) { console.error("Error updating order in FB", e); }
+  if (typeof database !== "undefined" && database) {
+    try {
+      const snapshot = await database.ref("ws_orders").orderByChild("id").equalTo(orderId).once("value");
+      if (!snapshot.exists()) return false;
+      const writes = [];
+      snapshot.forEach(function (child) { writes.push(child.ref.update(patch)); });
+      await Promise.all(writes);
+    } catch (e) {
+      console.error("Error updating order in FB", e);
+      return false;
     }
+  }
+  const list = Store.getOrders().map(o => o.id === orderId ? Object.assign({}, o, patch) : o);
+  LS.set("ws_orders", JSON.stringify(list));
+  return true;
 };
 
 function renderOrdersTable() {
   const tbody = document.getElementById("ordersTableBody");
   if (!tbody) return;
-  const orders = Store.getOrders();
+  // ws_orders قابلة للكتابة من أي زائر (بدون خادم وسيط) → نعرض آخر 300 طلب فقط كي لا تُغرق لوحة التحكم بطلبات وهمية
+  const ORDERS_VIEW_LIMIT = 300;
+  const orders = Store.getOrders().slice(0, ORDERS_VIEW_LIMIT);
+  const targets = [tbody, document.getElementById("ordersTableBody2")].filter(Boolean);
 
   if (!orders.length) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--ink-300);">لا توجد طلبات مسجّلة بعد</td></tr>';
+    targets.forEach(function (t) {
+      t.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--ink-300);">لا توجد طلبات مسجّلة بعد</td></tr>';
+    });
     return;
   }
 
-  tbody.innerHTML = orders.map(function (o) {
-    const date = new Date(o.date).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" });
+  const rowsHtml = orders.map(function (o) {
+    const date = escapeHtml(new Date(o.date).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" }));
     const summary = (o.items || []).map(function (it) {
       const opts = [];
       if (it.color) opts.push(escapeHtml(it.color));
       if (it.size) opts.push(escapeHtml(it.size));
       if (!opts.length && it.variant) opts.push(escapeHtml(it.variant));
-      return escapeHtml(it.name) + (opts.length ? " (" + opts.join(" / ") + ")" : "") + " ×" + it.qty;
+      return escapeHtml(it.name) + (opts.length ? " (" + opts.join(" / ") + ")" : "") + " ×" + (Number(it.qty) || 0);
     }).join("، ");
 
     const cust = o.customer || {};
@@ -1294,7 +1433,7 @@ function renderOrdersTable() {
     if (cust.phone || cust.gov) {
       customerHtml = 
         '<div style="font-size:.85rem;line-height:1.4;">' +
-          (cust.phone ? '<a href="tel:' + escapeHtml(cust.phone) + '" style="font-weight:700;color:var(--olive-700);text-decoration:underline;" dir="ltr">' + escapeHtml(cust.phone) + '</a><br>' : '') +
+          (cust.phone ? '<a href="tel:' + escapeHtml(String(cust.phone).replace(/[^0-9+]/g, "")) + '" style="font-weight:700;color:var(--olive-700);text-decoration:underline;" dir="ltr">' + escapeHtml(cust.phone) + '</a><br>' : '') +
           '<span>' + escapeHtml(cust.gov || "") + (cust.area ? ' — ' + escapeHtml(cust.area) : '') + '</span>' +
           (cust.landmark && cust.landmark !== "لا يوجد" ? '<br><small style="color:var(--ink-500);">' + escapeHtml(cust.landmark) + '</small>' : '') +
         '</div>';
@@ -1303,7 +1442,7 @@ function renderOrdersTable() {
     const status = o.status || 'pending';
     const deducted = o.stockDeducted ? true : false;
     let statusHtml = `
-      <select class="order-status-select" onchange="changeOrderStatus('${o.id}', this)" style="padding:6px; border-radius:6px; font-size:0.85rem; border:1px solid var(--line-strong); background:#fff; cursor:pointer;">
+      <select class="order-status-select" onchange="changeOrderStatus(${jsStr(o.id)}, this)" style="padding:6px; border-radius:6px; font-size:0.85rem; border:1px solid var(--line-strong); background:#fff; cursor:pointer;">
         <option value="pending" ${status === 'pending' ? 'selected' : ''}>قيد المعالجة ⏳</option>
         <option value="prepared" ${status === 'prepared' ? 'selected' : ''}>تم التجهيز ✅</option>
         <option value="cancelled" ${status === 'cancelled' ? 'selected' : ''}>ملغي ❌</option>
@@ -1325,6 +1464,8 @@ function renderOrdersTable() {
       "</tr>"
     );
   }).join("");
+
+  targets.forEach(function (t) { t.innerHTML = rowsHtml; });
 }
 
 /* ---------------------------------------------------------------------- */

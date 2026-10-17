@@ -37,7 +37,7 @@ function cartLineHtml(line, product, unavailable) {
   const unavailableHtml = unavailable
     ? '<div style="color:var(--danger);font-size:.85rem;font-weight:700;margin-bottom:4px;">غير متوفر حاليًا — لن يُضاف إلى الطلب</div>'
     : '';
-  const maxStock = Math.max(1, Store.getVariantStock(product, line.color, line.size));
+  const maxStock = Math.max(1, Math.floor(Store.getVariantStock(product, line.color, line.size)));
 
   return (
     '<div class="cart-item" data-id="' + escapeHtml(line.itemKey) + '">' +
@@ -94,7 +94,7 @@ function renderCartPage() {
       return;
     }
     const variantStock = Store.getVariantStock(product, line.color, line.size);
-    const unavailable = !product.available || variantStock <= 0;
+    const unavailable = product.available === false || variantStock <= 0;
     if (unavailable) {
       hasUnavailable = true;
       rows.push(cartLineHtml(line, product, true));
@@ -133,7 +133,7 @@ function renderCartPage() {
   if (deliveryNoteEl) {
     const deliveryInfo = (Store.getSettings().deliveryInfo || "").trim();
     deliveryNoteEl.innerHTML = "<strong>ملاحظة: سعر المنتج غير شامل أجور التوصيل</strong>" +
-      (deliveryInfo ? "<br>" + deliveryInfo : "");
+      (deliveryInfo ? "<br>" + escapeHtml(deliveryInfo) : "");
   }
 }
 

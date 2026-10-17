@@ -60,13 +60,11 @@ function showDeliveryModal(onConfirm) {
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") modal.classList.remove("open"); });
   }
 
-  // تعبئة الحقول بالقيم المخزنة تلقائياً
-  document.getElementById("delGov").value = saved.gov || "";
-  document.getElementById("delArea").value = saved.area || "";
-  document.getElementById("delLandmark").value = saved.landmark && saved.landmark !== "لا يوجد" ? saved.landmark : "";
-  document.getElementById("delPhone").value = saved.phone || "";
-  const notesField = document.getElementById("delNotes");
-  if (notesField) notesField.value = saved.notes || "";
+  // نستبدل النموذج بنسخة جديدة أولاً (لإزالة مستمعي submit القديمة) ثم نقرأ العناصر من النسخة الجديدة.
+  // (كان الكود يمسك عناصر النسخة القديمة المفصولة عن الصفحة فلا تظهر رسالة التحقق ولا يتعطل الزر)
+  const oldForm = document.getElementById("deliveryForm");
+  const newForm = oldForm.cloneNode(true);
+  oldForm.parentNode.replaceChild(newForm, oldForm);
 
   const phoneInput = document.getElementById("delPhone");
   const phoneHint = document.getElementById("phoneValidationHint");
@@ -101,22 +99,23 @@ function showDeliveryModal(onConfirm) {
     }
   }
 
+  // تعبئة الحقول بالقيم المخزنة تلقائياً
+  document.getElementById("delGov").value = saved.gov || "";
+  document.getElementById("delArea").value = saved.area || "";
+  document.getElementById("delLandmark").value = saved.landmark && saved.landmark !== "لا يوجد" ? saved.landmark : "";
+  phoneInput.value = saved.phone || "";
+  const notesField = document.getElementById("delNotes");
+  if (notesField) notesField.value = saved.notes || "";
+  if (submitBtn) submitBtn.disabled = false;
+  phoneHint.style.display = "none";
+  phoneInput.style.borderColor = "";
+
   // فحص الهاتف فور الفتح إن وُجدت قيمة محفوظة
   if (phoneInput.value) {
     validatePhoneNumber(phoneInput.value);
   }
 
   phoneInput.oninput = function(e) {
-    validatePhoneNumber(e.target.value);
-  };
-
-  const form = document.getElementById("deliveryForm");
-  const newForm = form.cloneNode(true);
-  form.parentNode.replaceChild(newForm, form);
-
-  // إعادة ربط الفحص بالنموذج الجديد بعد الاستبدال
-  const rePhoneInput = document.getElementById("delPhone");
-  rePhoneInput.oninput = function(e) {
     validatePhoneNumber(e.target.value);
   };
 
@@ -163,7 +162,7 @@ function getOrderableCartLines(cart, products) {
     const p = products.find(function (x) { return x.id === line.productId; });
     if (!p) { skipped++; return; }
     const stock = Store.getVariantStock(p, line.color, line.size);
-    if (!p.available || stock <= 0) { skipped++; return; }
+    if (p.available === false || stock <= 0) { skipped++; return; }
     lines.push(Object.assign({}, line, { qty: Math.max(1, Math.min(line.qty, stock)) }));
   });
   return { lines: lines, skipped: skipped };

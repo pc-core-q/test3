@@ -17,7 +17,8 @@ function escapeHtml(str) {
 
 /* يمنع روابط javascript: / data: القادمة من لوحة التحكم (انستغرام/تيك توك/إعلانات) */
 function safeUrl(url) {
-  const u = String(url === null || url === undefined ? "" : url).trim();
+  // المتصفحات تتجاهل الأحرف الخفية/المسافات داخل المخطط (java\nscript:) لذلك نزيلها قبل الفحص
+  const u = String(url === null || url === undefined ? "" : url).replace(/[\u0000-\u0020\u007f-\u009f\u2028\u2029]+/g, "");
   return /^(https?:\/\/|\/|\.\/|tel:|mailto:)/i.test(u) || (u && !/^[a-z][a-z0-9+.-]*:/i.test(u)) ? u : "#";
 }
 
@@ -267,23 +268,14 @@ function initGlobalSearch() {
 
     resultsBox.innerHTML = '<div class="empty-search">جاري البحث...</div>';
 
-    let pool = Store.getProducts();
-    if (!pool || pool.length < 60) {
-        try {
-            const batch = await Store.loadProductsPage(100, null);
-            pool = Store.getProducts();
-            if (!pool.length) pool = batch.products || [];
-        } catch (err) {
-            console.error("Search load error:", err);
-        }
-    }
-
-    const matched = pool.filter(p => 
-        (p.name || "").toLowerCase().includes(query) || 
-        (p.barcode && String(p.barcode).toLowerCase().includes(query)) ||
-        (p.sku && String(p.sku).toLowerCase().includes(query)) ||
-        (p.description && p.description.toLowerCase().includes(query))
-    ).slice(0, 8);
+    try { await Store.ensureIndexFresh(); } catch (err) { console.error("Search index error:", err); }
+    const pool = Store.getIndexItems() || [];
+    const tokens = normalizeSearch(query).split(" ");
+    const matched = pool.filter(function (p) {
+        if (!p || p.available === false) return false;
+        for (let i = 0; i < tokens.length; i++) if (p._k.indexOf(tokens[i]) === -1) return false;
+        return true;
+    }).slice(0, 8);
 
     if(matched.length === 0) {
         resultsBox.innerHTML = '<div class="empty-search">لا توجد منتجات مطابقة لـ "' + escapeHtml(query) + '"</div>';
